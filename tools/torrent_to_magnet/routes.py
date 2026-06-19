@@ -35,7 +35,7 @@ def clear_torrents():
 
 @torrent_to_magnet_bp.route('/')
 def index():
-    return render_template('torrent-to-magnet/index.html')
+    return render_template('torrent_to_magnet/index.html')   # ← 这里已修正
 
 @torrent_to_magnet_bp.route('/upload', methods=['POST'])
 def upload():

@@ -42,7 +42,7 @@ def do_flatten(target_dir):
 
 @file_flatten_bp.route('/')
 def index():
-    return render_template('file-flatten/index.html')
+    return render_template('file_flatten/index.html')   # ← 这里已修正
 
 @file_flatten_bp.route('/api', methods=['POST'])
 def api():
