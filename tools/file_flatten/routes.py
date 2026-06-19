@@ -5,7 +5,7 @@ from datetime import datetime
 
 file_flatten_bp = Blueprint('file_flatten', __name__, template_folder='../../templates/file_flatten')
 
-def do_flatten(target_dir):
+def do_flatten(target_dir, delete_subdirs=False):
     if not os.path.isdir(target_dir):
         return {"success": False, "message": f"路径不存在或不是目录：{target_dir}"}
 
@@ -30,26 +30,32 @@ def do_flatten(target_dir):
                             counter += 1
                     shutil.move(file_path, dest_path)
                     moved_count += 1
-            # 尝试删除空目录
-            try:
-                os.rmdir(item_path)
-            except OSError:
-                pass
+            
+            # 根据选项决定是否删除子目录
+            if delete_subdirs:
+                try:
+                    os.rmdir(item_path)
+                except OSError:
+                    pass  # 目录非空或有权限问题时跳过
+            # else: 保留原目录（可能包含隐藏文件或其他内容）
+
     return {
         "success": True,
-        "message": f"操作完成！\n移动文件数量：{moved_count}\n新目录：{new_dir}"
+        "message": f"操作完成！\n移动文件数量：{moved_count}\n新目录：{new_dir}\n删除子目录：{'是' if delete_subdirs else '否'}"
     }
 
 @file_flatten_bp.route('/')
 def index():
-    return render_template('file_flatten/index.html')   # ← 这里已修正
+    return render_template('file_flatten/index.html')
 
 @file_flatten_bp.route('/api', methods=['POST'])
 def api():
     data = request.get_json()
     target_dir = data.get('path', '').strip()
+    delete_subdirs = data.get('delete_subdirs', False)
+    
     if not target_dir:
         return jsonify({"success": False, "message": "请输入目录路径"})
     
-    result = do_flatten(target_dir)
+    result = do_flatten(target_dir, delete_subdirs)
     return jsonify(result)

@@ -12,6 +12,7 @@
         button { background: #3498db; color: white; padding: 12px 30px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; }
         button:hover { background: #2980b9; }
         #result { margin-top: 20px; padding: 15px; border-radius: 8px; background: #f0f8ff; white-space: pre-wrap; }
+        .option { margin: 15px 0; }
     </style>
 </head>
 <body>
@@ -22,6 +23,13 @@
         <label>目标目录路径：</label>
         <input type="text" id="path" placeholder="/path/to/your/folder" />
 
+        <div class="option">
+            <label>
+                <input type="checkbox" id="delete_subdirs" />
+                删除移动后的子目录（默认不删除）
+            </label>
+        </div>
+
         <button onclick="startFlatten()">开始整理文件</button>
 
         <div id="result"></div>
@@ -30,6 +38,7 @@
     <script>
         async function startFlatten() {
             const path = document.getElementById('path').value.trim();
+            const deleteSubdirs = document.getElementById('delete_subdirs').checked;
             const resultDiv = document.getElementById('result');
             
             if (!path) {
@@ -43,7 +52,10 @@
                 const res = await fetch('/tools/file-flatten/api', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ path: path })
+                    body: JSON.stringify({ 
+                        path: path,
+                        delete_subdirs: deleteSubdirs
+                    })
                 });
                 const data = await res.json();
 
