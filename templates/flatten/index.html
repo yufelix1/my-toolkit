@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件整理工具</title>
+    <style>
+        body { font-family: "Microsoft YaHei", Arial, sans-serif; background: #f5f5f5; margin:0; padding:20px; }
+        .container { max-width: 700px; margin: 40px auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; }
+        input[type="text"] { width: 100%; padding: 12px; font-size: 16px; border: 2px solid #ddd; border-radius: 8px; margin: 15px 0; }
+        button { width: 100%; padding: 14px; font-size: 18px; background: #4CAF50; color: white; border: none; border-radius: 8px; cursor: pointer; }
+        button:hover { background: #45a049; }
+        #result { margin-top: 20px; padding: 15px; border-radius: 8px; white-space: pre-wrap; }
+        .success { background: #e8f5e9; color: #2e7d32; }
+        .error { background: #ffebee; color: #c62828; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📁 文件整理工具</h1>
+        <p style="text-align:center;color:#666;">两层目录展平 → 时间戳目录</p>
+
+        <label>目标目录路径：</label>
+        <input type="text" id="path" placeholder="/data 或 /a/b/c/d" />
+
+        <button onclick="startFlatten()">开始整理文件</button>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function startFlatten() {
+            const path = document.getElementById('path').value.trim();
+            const resultDiv = document.getElementById('result');
+            if (!path) {
+                resultDiv.innerHTML = `<div class="error">请输入目录路径！</div>`;
+                return;
+            }
+            resultDiv.innerHTML = `<div>正在处理...</div>`;
+            try {
+                const res = await fetch('/tools/flatten/api', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: path })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    resultDiv.innerHTML = `<div class="success">${data.message}</div>`;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">${data.message}</div>`;
+                }
+            } catch (e) {
+                resultDiv.innerHTML = `<div class="error">请求失败</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

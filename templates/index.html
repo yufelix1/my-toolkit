@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的工具集</title>
+    <style>
+        body {
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+            background: #f8f9fa;
+            margin: 0;
+            padding: 30px;
+        }
+        .container { max-width: 1000px; margin: auto; }
+        h1 { text-align: center; color: #2c3e50; margin-bottom: 10px; }
+        .subtitle { text-align: center; color: #666; margin-bottom: 40px; }
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 25px;
+        }
+        .tool-card {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        .tool-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+        }
+        .tool-card h3 { margin: 15px 0 10px; color: #2c3e50; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛠️ 我的工具集</h1>
+        <p class="subtitle">个人常用工具合集 · 持续扩展中</p>
+
+        <div class="tools-grid">
+            <a href="/tools/flatten">
+                <div class="tool-card">
+                    <h3>📁 文件整理工具</h3>
+                    <p>两层目录展平 → 时间戳目录</p>
+                </div>
+            </a>
+
+            <a href="/tools/torrent">
+                <div class="tool-card">
+                    <h3>🔄 Torrent 转 Magnet</h3>
+                    <p>种子文件转磁力链接</p>
+                </div>
+            </a>
+        </div>
+    </div>
+</body>
+</html>

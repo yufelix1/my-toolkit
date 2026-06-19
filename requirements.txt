@@ -1,0 +1,2 @@
+flask==3.0.*
+bencodepy==0.9.0
