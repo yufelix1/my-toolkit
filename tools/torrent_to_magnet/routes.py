@@ -7,8 +7,8 @@ from flask import Blueprint, request, render_template, send_from_directory, json
 
 torrent_to_magnet_bp = Blueprint('torrent_to_magnet', __name__, template_folder='../../templates/torrent_to_magnet')
 
-INPUT_DIR = os.getenv('INPUT_DIR', '/torrents')
-OUTPUT_DIR = os.getenv('OUTPUT_DIR', '/output')
+INPUT_DIR = os.getenv('INPUT_DIR', '/data/torrents')
+OUTPUT_DIR = os.getenv('OUTPUT_DIR', '/data/output')
 
 os.makedirs(INPUT_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
