@@ -16,9 +16,9 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 def torrent_to_magnet(torrent_path):
     try:
         with open(torrent_path, 'rb') as f:
-            metadata = bencodepy.bdecode(f.read())
+            metadata = bencodepy.decode(f.read())
         info = metadata[b'info']
-        info_bencoded = bencodepy.bencode(info)
+        info_bencoded = bencodepy.encode(info)
         info_hash = hashlib.sha1(info_bencoded).hexdigest().lower()
         return f"magnet:?xt=urn:btih:{info_hash}"
     except Exception as e:
