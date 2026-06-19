@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Torrent 转 Magnet</title>
+    <style>
+        body { font-family: "Microsoft YaHei", Arial, sans-serif; background: #f8f9fa; margin: 0; padding: 30px; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #2c3e50; }
+        button { padding: 12px 24px; margin: 10px; font-size: 16px; border: none; border-radius: 8px; cursor: pointer; }
+        .upload-btn { background: #27ae60; color: white; }
+        .convert-btn { background: #e67e22; color: white; }
+        #result { margin-top: 20px; padding: 15px; background: #f0f8ff; border-radius: 8px; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Torrent 转 Magnet</h1>
+        <p style="text-align:center;color:#666;">仅提取 BTIH 磁力链接</p>
+
+        <h3>1. 上传 .torrent 文件</h3>
+        <input type="file" id="files" multiple accept=".torrent" />
+        <button class="upload-btn" onclick="uploadFiles()">上传文件</button>
+
+        <h3>2. 执行转换</h3>
+        <button class="convert-btn" onclick="convertTorrents()">一键转换所有 torrent → 磁力</button>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function uploadFiles() {
+            const files = document.getElementById('files').files;
+            if (!files.length) return alert("请选择文件");
+
+            const formData = new FormData();
+            for (let file of files) formData.append('files', file);
+
+            const res = await fetch('/tools/torrent-to-magnet/upload', { method: 'POST', body: formData });
+            const data = await res.json();
+            document.getElementById('result').innerHTML = `<span style="color:green">${data.message}</span>`;
+        }
+
+        async function convertTorrents() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '正在转换...';
+
+            const res = await fetch('/tools/torrent-to-magnet/convert', { method: 'POST' });
+            const data = await res.json();
+
+            if (data.status === "success") {
+                resultDiv.innerHTML = `
+                    ✅ 转换完成！共 ${data.count} 个磁力链接<br>
+                    <a href="/tools/torrent-to-magnet/download/${data.file}" download>📥 下载磁力链接文件</a>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

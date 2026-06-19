@@ -1,11 +1,12 @@
 from flask import Flask, render_template
-from tools.flatten import flatten_bp
-from tools.torrent import torrent_bp
+from tools.file_flatten import file_flatten_bp
+from tools.torrent_to_magnet import torrent_to_magnet_bp
 
 app = Flask(__name__)
 
-app.register_blueprint(flatten_bp, url_prefix='/tools/flatten')
-app.register_blueprint(torrent_bp, url_prefix='/tools/torrent')
+# Register blueprints with descriptive URL prefixes
+app.register_blueprint(file_flatten_bp, url_prefix='/tools/file-flatten')
+app.register_blueprint(torrent_to_magnet_bp, url_prefix='/tools/torrent-to-magnet')
 
 @app.route('/')
 def index():

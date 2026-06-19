@@ -3,7 +3,7 @@ import os
 import shutil
 from datetime import datetime
 
-flatten_bp = Blueprint('flatten', __name__, template_folder='../../templates/flatten')
+file_flatten_bp = Blueprint('file_flatten', __name__, template_folder='../../templates/file-flatten')
 
 def do_flatten(target_dir):
     if not os.path.isdir(target_dir):
@@ -16,7 +16,7 @@ def do_flatten(target_dir):
     moved_count = 0
     for item in os.listdir(target_dir):
         item_path = os.path.join(target_dir, item)
-        if os.path.isdir(item_path):
+        if os.path.isdir(item_path) and item != timestamp:  # 避免处理刚创建的目录
             for file_name in os.listdir(item_path):
                 file_path = os.path.join(item_path, file_name)
                 if os.path.isfile(file_path):
@@ -40,15 +40,16 @@ def do_flatten(target_dir):
         "message": f"操作完成！\n移动文件数量：{moved_count}\n新目录：{new_dir}"
     }
 
-@flatten_bp.route('/')
+@file_flatten_bp.route('/')
 def index():
-    return render_template('flatten/index.html')
+    return render_template('file-flatten/index.html')
 
-@flatten_bp.route('/api', methods=['POST'])
+@file_flatten_bp.route('/api', methods=['POST'])
 def api():
     data = request.get_json()
     target_dir = data.get('path', '').strip()
     if not target_dir:
         return jsonify({"success": False, "message": "请输入目录路径"})
+    
     result = do_flatten(target_dir)
     return jsonify(result)

@@ -1,2 +1,3 @@
-flask==3.0.*
-bencodepy==0.9.0
+Flask==3.0.*
+bencodepy
+werkzeug

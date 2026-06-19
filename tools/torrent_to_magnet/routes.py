@@ -5,7 +5,7 @@ import glob
 from datetime import datetime
 from flask import Blueprint, request, render_template, send_from_directory, jsonify
 
-torrent_bp = Blueprint('torrent', __name__, template_folder='../../templates/torrent')
+torrent_to_magnet_bp = Blueprint('torrent_to_magnet', __name__, template_folder='../../templates/torrent-to-magnet')
 
 INPUT_DIR = os.getenv('INPUT_DIR', '/torrents')
 OUTPUT_DIR = os.getenv('OUTPUT_DIR', '/output')
@@ -33,18 +33,18 @@ def clear_torrents():
         except Exception as e:
             print(f"删除失败 {t}: {e}")
 
-@torrent_bp.route('/')
+@torrent_to_magnet_bp.route('/')
 def index():
-    return render_template('torrent/index.html')
+    return render_template('torrent-to-magnet/index.html')
 
-@torrent_bp.route('/upload', methods=['POST'])
+@torrent_to_magnet_bp.route('/upload', methods=['POST'])
 def upload():
     if 'files' not in request.files:
         return jsonify({"error": "没有文件"}), 400
     files = request.files.getlist('files')
     uploaded = 0
     for file in files:
-        if file and file.filename.endswith('.torrent'):
+        if file and file.filename.lower().endswith('.torrent'):
             file.save(os.path.join(INPUT_DIR, file.filename))
             uploaded += 1
     return jsonify({
@@ -52,7 +52,7 @@ def upload():
         "message": f"✅ 成功上传 {uploaded} 个 torrent 文件"
     })
 
-@torrent_bp.route('/convert', methods=['POST'])
+@torrent_to_magnet_bp.route('/convert', methods=['POST'])
 def convert():
     torrent_files = glob.glob(os.path.join(INPUT_DIR, '**', '*.torrent'), recursive=True)
     magnets = []
@@ -75,6 +75,6 @@ def convert():
         "file": os.path.basename(output_file)
     })
 
-@torrent_bp.route('/download/<filename>')
+@torrent_to_magnet_bp.route('/download/<filename>')
 def download(filename):
     return send_from_directory(OUTPUT_DIR, filename)
