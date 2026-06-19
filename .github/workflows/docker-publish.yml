@@ -23,4 +23,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/torrent-to-magnet:latest
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/my-toolkit:latest
