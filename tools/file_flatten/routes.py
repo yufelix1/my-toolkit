@@ -3,7 +3,7 @@ import os
 import shutil
 from datetime import datetime
 
-file_flatten_bp = Blueprint('file_flatten', __name__, template_folder='../../templates/file-flatten')
+file_flatten_bp = Blueprint('file_flatten', __name__, template_folder='../../templates/file_flatten')
 
 def do_flatten(target_dir):
     if not os.path.isdir(target_dir):

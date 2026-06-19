@@ -5,7 +5,7 @@ import glob
 from datetime import datetime
 from flask import Blueprint, request, render_template, send_from_directory, jsonify
 
-torrent_to_magnet_bp = Blueprint('torrent_to_magnet', __name__, template_folder='../../templates/torrent-to-magnet')
+torrent_to_magnet_bp = Blueprint('torrent_to_magnet', __name__, template_folder='../../templates/torrent_to_magnet')
 
 INPUT_DIR = os.getenv('INPUT_DIR', '/torrents')
 OUTPUT_DIR = os.getenv('OUTPUT_DIR', '/output')
