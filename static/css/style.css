@@ -69,9 +69,16 @@ select:focus {
     box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
 }
 
+.tools-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px;
+    margin-top: 2rem;
+}
+
 /* 按钮通用样式 */
 button {
-    color: white;
+    color: rgba(52, 152, 219, 0.1);
     padding: 14px 30px;
     border: none;
     border-radius: 8px;
