@@ -44,7 +44,66 @@
     <div id="result" class="result"></div>
 
     <script>
-        // ... switchInputMode, uploadFiles, downloadFromRSS 函数保持不变 ...
+        function switchInputMode() {
+            const mode = document.getElementById('inputMode').value;
+            document.getElementById('uploadSection').style.display = mode === 'upload' ? 'block' : 'none';
+            document.getElementById('rssSection').style.display = mode === 'rss' ? 'block' : 'none';
+        }
+
+        // 默认显示上传方式
+        window.onload = function() {
+            switchInputMode();
+        };
+
+        async function uploadFiles() {
+            const files = document.getElementById('torrentFiles').files;
+            if (files.length === 0) return alert("请选择 .torrent 文件");
+
+            const formData = new FormData();
+            for (let file of files) {
+                formData.append('files', file);
+            }
+
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '正在上传...';
+
+            try {
+                const res = await fetch('/tools/torrent-to-magnet/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                resultDiv.style.color = data.success ? '#27ae60' : 'red';
+                resultDiv.innerHTML = data.message || data.error;
+            } catch (e) {
+                resultDiv.style.color = 'red';
+                resultDiv.innerHTML = '上传失败：' + e.message;
+            }
+        }
+
+        async function downloadFromRSS() {
+            const rss_url = document.getElementById('rss_url').value.trim();
+            const filters = document.getElementById('filters').value.trim();
+
+            if (!rss_url) return alert("请输入 RSS 地址");
+
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '正在从 RSS 下载种子...';
+
+            try {
+                const res = await fetch('/tools/torrent-to-magnet/rss', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rss_url, filters })
+                });
+                const data = await res.json();
+                resultDiv.style.color = data.success ? '#27ae60' : 'red';
+                resultDiv.innerHTML = data.message;
+            } catch (e) {
+                resultDiv.style.color = 'red';
+                resultDiv.innerHTML = 'RSS 下载失败';
+            }
+        }
 
         async function convertToMagnet() {
             const resultDiv = document.getElementById('result');
