@@ -78,13 +78,14 @@ select:focus {
 
 /* 按钮通用样式 */
 button {
-    color: rgba(52, 152, 219, 0.1);
+    color: white;
+    background-color: var(--primary);
     padding: 14px 30px;
     border: none;
     border-radius: 8px;
     font-size: 16px;
     cursor: pointer;
-    transition: all 0.3s;
+    transition: all 0.3s ease;
     font-weight: 500;
     display: inline-flex;
     align-items: center;
@@ -92,12 +93,20 @@ button {
 }
 
 button:hover {
+    background-color: var(--primary-dark);
     transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.15);
 }
 
 button:active {
-    transform: translateY(0);
+    transform: translateY(1px);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+button:disabled {
+    background-color: #95a5a6;
+    cursor: not-allowed;
+    transform: none;
 }
 
 /* 卡片区域样式 */
