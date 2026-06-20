@@ -133,7 +133,7 @@
 
         async function loadLatestMagnetContent(filename) {
             try {
-                const res = await fetch(`/download/${filename}`);
+                const res = await fetch(`/tools/torrent-to-magnet/download/${filename}`);
                 const text = await res.text();
                 
                 document.getElementById('magnet-content').textContent = text;
