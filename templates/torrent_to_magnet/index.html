@@ -17,14 +17,14 @@
 
     <!-- 上传方式 -->
     <section id="uploadSection">
-        <h2>1 上传 .torrent 文件</h2>
+        <h2>1. 上传 .torrent 文件</h2>
         <input type="file" id="torrentFiles" multiple accept=".torrent" />
         <button onclick="uploadFiles()">上传文件</button>
     </section>
 
     <!-- RSS 方式 -->
     <section id="rssSection" style="display: none;">
-        <h2>1.5 RSS 自动下载种子</h2>
+        <h2>1. RSS 自动下载种子</h2>
         <label>RSS 地址：</label>
         <input type="text" id="rss_url" placeholder="https://mikanani.me/RSS/Bangumi?bangumiId=2187&subgroupid=203" />
 
@@ -41,6 +41,12 @@
         <button onclick="convertToMagnet()">一键转换所有 torrent → 磁力链接</button>
     </section>
 
+    <div id="content-section" style="display: none; margin-top: 20px;">
+        <h3>✅ 转换完成 - 磁力链接列表</h3>
+        <button onclick="copyToClipboard()" class="btn" style="background:#28a745;">复制全部磁力链接</button>
+        <pre id="magnet-content"></pre>
+    </div>
+
     <div id="result" class="result"></div>
 
     <script>
@@ -50,7 +56,6 @@
             document.getElementById('rssSection').style.display = mode === 'rss' ? 'block' : 'none';
         }
 
-        // 默认显示上传方式
         window.onload = function() {
             switchInputMode();
         };
@@ -107,24 +112,17 @@
 
         async function convertToMagnet() {
             const resultDiv = document.getElementById('result');
-            const contentSection = document.getElementById('content-section');
             resultDiv.innerHTML = '正在转换...';
-            contentSection.style.display = 'none';
 
             try {
                 const res = await fetch('/tools/torrent-to-magnet/convert', { method: 'POST' });
                 const data = await res.json();
 
                 if (data.status === "success") {
-                    resultDiv.innerHTML = `<span style="color:#27ae60">✅ 转换成功！共 ${data.count} 个磁力链接</span>`;
+                    resultDiv.innerHTML = `<span style="color:green">✅ 转换成功！共 ${data.count} 个磁力链接</span>`;
 
-                    const magnetsText = data.magnets.join('\n');
-                    document.getElementById('magnet-content').textContent = magnetsText;
-
-                    const downloadLink = document.getElementById('download-link');
-                    downloadLink.href = `/tools/torrent-to-magnet/download/${data.file}`;
-
-                    contentSection.style.display = 'block';
+                    // 显示最新磁力内容
+                    await loadLatestMagnetContent(data.file);
                 } else {
                     resultDiv.innerHTML = '转换失败';
                 }
@@ -133,42 +131,47 @@
             }
         }
 
-        // 现代 Clipboard API（优先）+ 兼容旧版 execCommand
-        async function copyToClipboard() {
-            const textarea = document.getElementById('magnetsArea');
-            const text = textarea.value;
-
+        async function loadLatestMagnetContent(filename) {
             try {
-                // 优先使用现代 Clipboard API（支持 HTTPS 和 localhost）
-                await navigator.clipboard.writeText(text);
-                showCopyToast('✅ 已复制所有磁力链接到剪贴板！');
+                const res = await fetch(`/download/${filename}`);
+                const text = await res.text();
+                
+                document.getElementById('magnet-content').textContent = text;
+                document.getElementById('content-section').style.display = 'block';
             } catch (err) {
-                // 降级处理（HTTP 环境或老浏览器）
-                textarea.select();
-                document.execCommand('copy');
-                showCopyToast('✅ 已复制（兼容模式）');
+                console.error("读取文件失败", err);
             }
         }
 
-        function showCopyToast(msg) {
-            const toast = document.createElement('div');
-            toast.textContent = msg;
-            toast.style.position = 'fixed';
-            toast.style.bottom = '20px';
-            toast.style.left = '50%';
-            toast.style.transform = 'translateX(-50%)';
-            toast.style.background = '#27ae60';
-            toast.style.color = 'white';
-            toast.style.padding = '12px 24px';
-            toast.style.borderRadius = '8px';
-            toast.style.zIndex = '9999';
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 2500);
+        function copyToClipboard() {
+            const content = document.getElementById('magnet-content').textContent.trim();
+            if (!content) return;
+
+            // 现代浏览器 Clipboard API
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(content).then(() => {
+                }).catch(() => {
+                    fallbackCopy(content);
+                });
+            } else {
+                fallbackCopy(content);
+            }
         }
 
-        // 页面加载时初始化
-        window.onload = function() {
-            switchInputMode();
-        };
+        // Fallback 复制方法（兼容性更好）
+        function fallbackCopy(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+            } catch (err) {
+                alert("复制失败，请手动复制");
+            }
+            document.body.removeChild(textarea);
+        }
     </script>
 {% endblock %}
