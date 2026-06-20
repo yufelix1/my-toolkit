@@ -5,18 +5,22 @@ from datetime import datetime
 
 file_flatten_bp = Blueprint('file_flatten', __name__, template_folder='../../templates/file_flatten')
 
-def do_flatten(target_dir, delete_subdirs=False):
+def do_flatten(target_dir, delete_subdirs=False, custom_name=None):
     if not os.path.isdir(target_dir):
         return {"success": False, "message": f"路径不存在或不是目录：{target_dir}"}
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    new_dir = os.path.join(target_dir, timestamp)
+    if custom_name and custom_name.strip():
+        dir_name = custom_name.strip()
+    else:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        dir_name = timestamp
+    new_dir = os.path.join(target_dir, dir_name)
     os.makedirs(new_dir, exist_ok=True)
 
     moved_count = 0
     for item in os.listdir(target_dir):
         item_path = os.path.join(target_dir, item)
-        if os.path.isdir(item_path) and item != timestamp:  # 避免处理刚创建的目录
+        if os.path.isdir(item_path) and item != dir_name:  # 避免处理刚创建的目录
             for file_name in os.listdir(item_path):
                 file_path = os.path.join(item_path, file_name)
                 if os.path.isfile(file_path):
@@ -37,7 +41,6 @@ def do_flatten(target_dir, delete_subdirs=False):
                     os.rmdir(item_path)
                 except OSError:
                     pass  # 目录非空或有权限问题时跳过
-            # else: 保留原目录（可能包含隐藏文件或其他内容）
 
     return {
         "success": True,
@@ -53,9 +56,10 @@ def api():
     data = request.get_json()
     target_dir = data.get('path', '').strip()
     delete_subdirs = data.get('delete_subdirs', False)
+    custom_name = data.get('custom_name', None)
     
     if not target_dir:
         return jsonify({"success": False, "message": "请输入目录路径"})
     
-    result = do_flatten(target_dir, delete_subdirs)
+    result = do_flatten(target_dir, delete_subdirs, custom_name)
     return jsonify(result)

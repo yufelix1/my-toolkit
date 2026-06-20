@@ -18,7 +18,7 @@
 <body>
     <div class="container">
         <h1>📁 文件整理工具</h1>
-        <p style="text-align:center;color:#666;">两层目录展平 → 时间戳目录</p>
+        <p style="text-align:center;color:#666;">两层目录展平 → 时间戳或固定名称目录</p>
 
         <label>目标目录路径：</label>
         <input type="text" id="path" placeholder="/path/to/your/folder" />
@@ -30,15 +30,31 @@
             </label>
         </div>
 
+        <div class="option">
+            <label>
+                <input type="checkbox" id="use_custom_name" onchange="toggleCustomName()" />
+                使用固定目录名称（默认使用时间戳）
+            </label>
+            <input type="text" id="custom_name" placeholder="Season 1" style="display: none; width: 100%; margin-top: 5px;" />
+        </div>
+
         <button onclick="startFlatten()">开始整理文件</button>
 
         <div id="result"></div>
     </div>
 
     <script>
+        function toggleCustomName() {
+            const checkbox = document.getElementById('use_custom_name');
+            const input = document.getElementById('custom_name');
+            input.style.display = checkbox.checked ? 'block' : 'none';
+        }
+
         async function startFlatten() {
             const path = document.getElementById('path').value.trim();
             const deleteSubdirs = document.getElementById('delete_subdirs').checked;
+            const useCustom = document.getElementById('use_custom_name').checked;
+            const customName = useCustom ? document.getElementById('custom_name').value.trim() : null;
             const resultDiv = document.getElementById('result');
             
             if (!path) {
@@ -54,7 +70,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         path: path,
-                        delete_subdirs: deleteSubdirs
+                        delete_subdirs: deleteSubdirs,
+                        custom_name: customName
                     })
                 });
                 const data = await res.json();
