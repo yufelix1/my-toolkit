@@ -124,6 +124,7 @@ def convert():
     return jsonify({
         "status": "success",
         "count": len(magnets),
+        "magnets": magnets,
         "file": os.path.basename(output_file)
     })
 
