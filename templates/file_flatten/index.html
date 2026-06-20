@@ -1,93 +1,65 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>文件整理工具</title>
-    <style>
-        body { font-family: "Microsoft YaHei", Arial, sans-serif; background: #f8f9fa; margin: 0; padding: 30px; }
-        .container { max-width: 800px; margin: auto; background: white; padding: 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
-        h1 { text-align: center; color: #2c3e50; }
-        input[type="text"] { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ddd; border-radius: 8px; margin: 15px 0; }
-        button { background: #3498db; color: white; padding: 12px 30px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; }
-        button:hover { background: #2980b9; }
-        #result { margin-top: 20px; padding: 15px; border-radius: 8px; background: #f0f8ff; white-space: pre-wrap; }
-        .option { margin: 15px 0; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>📁 文件整理工具</h1>
-        <p style="text-align:center;color:#666;">两层目录展平 → 时间戳或固定名称目录</p>
+{% extends "base.html" %}
 
-        <label>目标目录路径：</label>
-        <input type="text" id="path" placeholder="/path/to/your/folder" />
+{% block title %}文件整理工具{% endblock %}
 
-        <div class="option">
-            <label>
-                <input type="checkbox" id="delete_subdirs" />
-                删除移动后的子目录（默认不删除）
-            </label>
-        </div>
+{% block content %}
+    <h1>📁 文件整理工具</h1>
+    <p class="subtitle">两层目录展平 → 时间戳或固定名称目录</p>
 
-        <div class="option">
-            <label>
-                <input type="checkbox" id="use_custom_name" onchange="toggleCustomName()" />
-                使用固定目录名称（默认使用时间戳）
-            </label>
-            <input type="text" id="custom_name" placeholder="Season 1" style="display: none; width: 100%; margin-top: 5px;" />
-        </div>
+    <label>目标目录路径：</label>
+    <input type="text" id="path" placeholder="/path/to/your/folder" />
 
-        <button onclick="startFlatten()">开始整理文件</button>
-
-        <div id="result"></div>
+    <div class="option">
+        <label>
+            <input type="checkbox" id="delete_subdirs" />
+            删除移动后的子目录（默认不删除）
+        </label>
     </div>
+
+    <div class="option">
+        <label>
+            <input type="checkbox" id="use_custom_name" onchange="toggleCustomName()" />
+            使用固定目录名称（默认使用时间戳）
+        </label>
+        <input type="text" id="custom_name" placeholder="Season 1" value="Season 1" style="display: none;" />
+    </div>
+
+    <button onclick="startFlatten()">开始整理文件</button>
+
+    <div id="result" class="result"></div>
 
     <script>
         function toggleCustomName() {
-            const checkbox = document.getElementById('use_custom_name');
+            const cb = document.getElementById('use_custom_name');
             const input = document.getElementById('custom_name');
-            input.style.display = checkbox.checked ? 'block' : 'none';
+            input.style.display = cb.checked ? 'block' : 'none';
         }
 
         async function startFlatten() {
             const path = document.getElementById('path').value.trim();
-            const deleteSubdirs = document.getElementById('delete_subdirs').checked;
-            const useCustom = document.getElementById('use_custom_name').checked;
-            const customName = useCustom ? document.getElementById('custom_name').value.trim() : null;
-            const resultDiv = document.getElementById('result');
-            
-            if (!path) {
-                resultDiv.innerHTML = '<span style="color:red;">请输入目录路径</span>';
-                return;
-            }
+            if (!path) return alert("请输入目录路径");
 
+            const resultDiv = document.getElementById('result');
             resultDiv.innerHTML = '正在处理...';
 
             try {
                 const res = await fetch('/tools/file-flatten/api', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
                         path: path,
-                        delete_subdirs: deleteSubdirs,
-                        custom_name: customName
+                        delete_subdirs: document.getElementById('delete_subdirs').checked,
+                        custom_name: document.getElementById('use_custom_name').checked ? 
+                                    document.getElementById('custom_name').value.trim() : null
                     })
                 });
                 const data = await res.json();
-
-                if (data.success) {
-                    resultDiv.style.color = 'green';
-                    resultDiv.innerHTML = data.message;
-                } else {
-                    resultDiv.style.color = 'red';
-                    resultDiv.innerHTML = data.message;
-                }
+                resultDiv.style.color = data.success ? 'green' : 'red';
+                resultDiv.innerHTML = data.message;
             } catch (e) {
                 resultDiv.style.color = 'red';
-                resultDiv.innerHTML = '请求失败，请检查路径或服务器状态';
+                resultDiv.innerHTML = '请求失败';
             }
         }
     </script>
-</body>
-</html>
+{% endblock %}
