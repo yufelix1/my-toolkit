@@ -16,6 +16,7 @@ app.register_blueprint(file_flatten_bp, url_prefix='/tools/file-flatten')
 app.register_blueprint(torrent_to_magnet_bp, url_prefix='/tools/torrent-to-magnet')
 
 @app.route('/')
+@app.route('/tools')
 def index():
     return render_template('index.html')
 

@@ -6,7 +6,7 @@
     --bg: #f8f9fa;
     --card: #ffffff;
     --border: #ddd;
-    --shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    --shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -27,95 +27,129 @@ body {
     box-shadow: var(--shadow);
 }
 
-h1 { text-align: center; color: var(--text); margin-bottom: 12px; }
-h2 { color: var(--text); margin: 25px 0 15px; }
-
-.subtitle, .center { text-align: center; color: var(--text-light); margin-bottom: 30px; }
-
-input[type="text"], input[type="file"] {
-    width: 100%;
-    padding: 12px 16px;
-    font-size: 16px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    margin: 8px 0;
+/* 标题样式优化 */
+h1 { 
+    text-align: center; 
+    color: var(--text); 
+    margin-bottom: 12px; 
+    font-weight: 700;
+}
+h2 { 
+    color: var(--text); 
+    margin: 0 0 15px 0;
+    font-size: 1.4rem;
+    font-weight: 600;
 }
 
-button {
-    background: var(--primary);
-    color: white;
-    padding: 12px 28px;
-    border: none;
-    border-radius: 8px;
-    font-size: 16px;
-    cursor: pointer;
-    transition: all 0.3s;
+.subtitle, .center { 
+    text-align: center; 
+    color: var(--text-light); 
+    margin-bottom: 30px; 
+    line-height: 1.8;
 }
 
-button:hover {
-    background: var(--primary-dark);
-    transform: translateY(-1px);
-}
-
-#result, .result {
-    margin-top: 20px;
-    padding: 18px;
-    border-radius: 8px;
-    background: #f0f8ff;
-    white-space: pre-wrap;
-    font-size: 15px;
-    line-height: 1.7;
-}
-
-.option { margin: 18px 0; }
-
-section {
-    margin: 35px 0;
-    padding: 25px;
-    border: 1px solid #eee;
-    border-radius: 12px;
-}
-
-/* 首页卡片 */
-.tools-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 25px;
-    margin-top: 30px;
-}
-
-.tool-card {
-    background: var(--card);
-    padding: 32px 24px;
-    border-radius: 16px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-    text-align: center;
-    transition: all 0.3s ease;
-}
-
-.tool-card:hover {
-    transform: translateY(-10px);
-    box-shadow: 0 15px 35px rgba(0,0,0,0.12);
-}
-
-.tool-card h3 { margin: 16px 0 8px; color: var(--text); }
-
-/* 响应式 */
-@media (max-width: 768px) {
-    .container { margin: 15px; padding: 25px; }
-    body { padding: 10px; }
-}
-
-/* 输入方式切换优化 */
-#uploadSection, #rssSection {
-    transition: all 0.3s ease;
-}
-
+/* 表单控件优化 */
+input[type="text"], 
+input[type="file"],
 select {
-    padding: 12px 16px;
+    width: 100%;
+    padding: 14px 18px;
     font-size: 16px;
     border: 1px solid var(--border);
     border-radius: 8px;
     margin: 8px 0;
     background: white;
+    transition: border 0.3s ease, box-shadow 0.3s ease;
+}
+
+input[type="text"]:focus,
+select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+/* 按钮通用样式 */
+button {
+    color: white;
+    padding: 14px 30px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+button:active {
+    transform: translateY(0);
+}
+
+/* 卡片区域样式 */
+.card-section {
+    margin: 20px 0;
+    padding: 30px;
+    border: 1px solid #eee;
+    border-radius: 12px;
+    background: white;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    transition: all 0.3s ease;
+}
+
+.card-section:hover {
+    box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+}
+
+/* 响应式优化 */
+@media (max-width: 768px) {
+    .container { 
+        margin: 15px; 
+        padding: 25px; 
+    }
+    body { 
+        padding: 10px; 
+    }
+    h1 {
+        font-size: 2rem;
+    }
+    button {
+        width: 100%;
+        justify-content: center;
+    }
+    .card-section {
+        padding: 20px;
+    }
+    .action-section {
+        padding: 20px;
+    }
+}
+
+/* 输入方式切换动画 */
+#uploadSection, #rssSection {
+    transition: opacity 0.3s ease, display 0s 0.3s ease;
+    opacity: 1;
+}
+
+/* 滚动条美化 */
+.magnet-output::-webkit-scrollbar {
+    width: 8px;
+}
+.magnet-output::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+.magnet-output::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 4px;
+}
+.magnet-output::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-dark);
 }
