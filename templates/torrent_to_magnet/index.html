@@ -6,20 +6,31 @@
     <h1>🔄 Torrent 转 Magnet</h1>
     <p class="subtitle">仅提取 BTIH 磁力链接 · 支持批量上传与 RSS 订阅</p>
 
-    <section>
-        <h2>1. 上传 .torrent 文件</h2>
+    <!-- 输入方式选择 -->
+    <div class="option">
+        <label><strong>选择输入方式：</strong></label>
+        <select id="inputMode" onchange="switchInputMode()" style="padding: 10px; font-size: 16px; width: 100%; max-width: 400px;">
+            <option value="upload">上传 .torrent 文件</option>
+            <option value="rss">RSS 自动下载种子</option>
+        </select>
+    </div>
+
+    <!-- 上传方式 -->
+    <section id="uploadSection">
+        <h2>1 上传 .torrent 文件</h2>
         <input type="file" id="torrentFiles" multiple accept=".torrent" />
         <button onclick="uploadFiles()">上传文件</button>
     </section>
 
-    <section>
+    <!-- RSS 方式 -->
+    <section id="rssSection" style="display: none;">
         <h2>1.5 RSS 自动下载种子</h2>
         <label>RSS 地址：</label>
-        <input type="text" id="rss_url" placeholder="https://example.com/rss.xml" />
+        <input type="text" id="rss_url" placeholder="https://mikanani.me/RSS/Bangumi?bangumiId=2187&subgroupid=203" />
 
         <div class="option">
             <label>过滤关键字（用逗号分隔，匹配则跳过）：</label>
-            <input type="text" id="filters" placeholder="例如: 1080p, x265" />
+            <input type="text" id="filters" placeholder="BIG5,720p,繁体" />
         </div>
 
         <button onclick="downloadFromRSS()">下载 RSS 中的种子</button>
@@ -28,12 +39,22 @@
     <section>
         <h2>2. 执行转换</h2>
         <button onclick="convertToMagnet()">一键转换所有 torrent → 磁力链接</button>
-        <button onclick="getCurrentMagnets()" style="margin-left: 12px;">查看当前已加载的磁力</button>
     </section>
 
     <div id="result" class="result"></div>
 
     <script>
+        function switchInputMode() {
+            const mode = document.getElementById('inputMode').value;
+            document.getElementById('uploadSection').style.display = mode === 'upload' ? 'block' : 'none';
+            document.getElementById('rssSection').style.display = mode === 'rss' ? 'block' : 'none';
+        }
+
+        // 默认显示上传方式
+        window.onload = function() {
+            switchInputMode();
+        };
+
         async function uploadFiles() {
             const files = document.getElementById('torrentFiles').files;
             if (files.length === 0) return alert("请选择 .torrent 文件");
@@ -88,48 +109,14 @@
             const resultDiv = document.getElementById('result');
             resultDiv.innerHTML = '正在转换...';
 
-            try {
-                const res = await fetch('/tools/torrent-to-magnet/convert', {
-                    method: 'POST'
-                });
-                const data = await res.json();
+            const res = await fetch('/tools/torrent-to-magnet/convert', { method: 'POST' });
+            const data = await res.json();
 
-                let html = `<strong>✅ 转换完成！共 ${data.count} 个磁力链接</strong><br><br>`;
-                
-                if (data.magnets && data.magnets.length > 0) {
-                    html += `<strong>磁力链接列表：</strong><br>`;
-                    data.magnets.forEach(m => {
-                        html += `<a href="${m}" target="_blank">${m}</a><br><br>`;
-                    });
-                    html += `<a href="/tools/torrent-to-magnet/download/${data.file}" download>📥 下载 magnets_${data.file.split('_')[1]}.txt</a>`;
-                }
-
-                resultDiv.style.color = '#27ae60';
-                resultDiv.innerHTML = html;
-            } catch (e) {
-                resultDiv.style.color = 'red';
-                resultDiv.innerHTML = '转换失败';
-            }
-        }
-
-        async function getCurrentMagnets() {
-            const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = '正在获取...';
-
-            try {
-                const res = await fetch('/tools/torrent-to-magnet/magnets');
-                const data = await res.json();
-
-                let html = `<strong>当前已加载 ${data.count} 个磁力链接：</strong><br><br>`;
-                data.magnets.forEach(m => {
-                    html += `<a href="${m}" target="_blank" style="word-break: break-all;">${m}</a><br><br>`;
-                });
-
-                resultDiv.style.color = '#2c3e50';
-                resultDiv.innerHTML = html;
-            } catch (e) {
-                resultDiv.style.color = 'red';
-                resultDiv.innerHTML = '获取失败';
+            if (data.status === "success") {
+                resultDiv.innerHTML = `
+                    ✅ 转换完成！共 ${data.count} 个磁力链接<br>
+                    <a href="/tools/torrent-to-magnet/download/${data.file}" download>📥 下载磁力链接文件</a>
+                `;
             }
         }
     </script>
