@@ -107,24 +107,24 @@
 
         async function convertToMagnet() {
             const resultDiv = document.getElementById('result');
+            const contentSection = document.getElementById('content-section');
             resultDiv.innerHTML = '正在转换...';
+            contentSection.style.display = 'none';
 
             try {
                 const res = await fetch('/tools/torrent-to-magnet/convert', { method: 'POST' });
                 const data = await res.json();
 
                 if (data.status === "success") {
-                    const magnetsText = data.magnets.join('\n');
+                    resultDiv.innerHTML = `<span style="color:#27ae60">✅ 转换成功！共 ${data.count} 个磁力链接</span>`;
 
-                    resultDiv.innerHTML = `
-                        <strong>✅ 转换完成！共 ${data.count} 个磁力链接</strong><br><br>
-                        <textarea id="magnetsArea" readonly style="width:100%; height:280px; font-family: monospace; font-size:14px; padding:12px;">${magnetsText}</textarea>
-                        <br><br>
-                        <button onclick="copyToClipboard()" style="margin-right:10px;">📋 复制所有磁力链接</button>
-                        <a href="/tools/torrent-to-magnet/download/${data.file}" download style="text-decoration:none;">
-                            <button>📥 下载 txt 文件</button>
-                        </a>
-                    `;
+                    const magnetsText = data.magnets.join('\n');
+                    document.getElementById('magnet-content').textContent = magnetsText;
+
+                    const downloadLink = document.getElementById('download-link');
+                    downloadLink.href = `/tools/torrent-to-magnet/download/${data.file}`;
+
+                    contentSection.style.display = 'block';
                 } else {
                     resultDiv.innerHTML = '转换失败';
                 }
