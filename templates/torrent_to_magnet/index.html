@@ -5,13 +5,49 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Torrent 转 Magnet</title>
     <style>
-        body { font-family: "Microsoft YaHei", Arial, sans-serif; background: #f8f9fa; margin: 0; padding: 30px; }
-        .container { max-width: 900px; margin: auto; background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        body { 
+            font-family: "Microsoft YaHei", Arial, sans-serif; 
+            background: #f8f9fa; 
+            margin: 0; 
+            padding: 30px; 
+        }
+        .container { 
+            max-width: 900px; 
+            margin: auto; 
+            background: white; 
+            padding: 30px; 
+            border-radius: 16px; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1); 
+        }
         h1 { text-align: center; color: #2c3e50; }
-        button { padding: 12px 24px; margin: 10px; font-size: 16px; border: none; border-radius: 8px; cursor: pointer; }
+        button { 
+            padding: 12px 24px; 
+            margin: 10px; 
+            font-size: 16px; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+        }
         .upload-btn { background: #27ae60; color: white; }
         .convert-btn { background: #e67e22; color: white; }
-        #result { margin-top: 20px; padding: 15px; background: #f0f8ff; border-radius: 8px; white-space: pre-wrap; }
+        .copy-btn { background: #3498db; color: white; }
+        #result { 
+            margin-top: 20px; 
+            padding: 15px; 
+            background: #f0f8ff; 
+            border-radius: 8px; 
+        }
+        textarea {
+            width: 100%;
+            height: 320px;
+            font-family: monospace;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            resize: vertical;
+            margin-top: 10px;
+        }
+        .success { color: #27ae60; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -44,17 +80,45 @@
 
         async function convertTorrents() {
             const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = '正在转换...';
+            resultDiv.innerHTML = '<p>正在转换，请稍候...</p>';
 
-            const res = await fetch('/tools/torrent-to-magnet/convert', { method: 'POST' });
-            const data = await res.json();
+            try {
+                const res = await fetch('/tools/torrent-to-magnet/convert', { method: 'POST' });
+                const data = await res.json();
 
-            if (data.status === "success") {
-                resultDiv.innerHTML = `
-                    ✅ 转换完成！共 ${data.count} 个磁力链接<br>
-                    <a href="/tools/torrent-to-magnet/download/${data.file}" download>📥 下载磁力链接文件</a>
-                `;
+                if (data.status === "success") {
+                    const magnetText = data.magnets ? data.magnets.join('\n') : '';
+
+                    resultDiv.innerHTML = `
+                        <p class="success">✅ 转换完成！共 ${data.count} 个磁力链接</p>
+                        <textarea id="magnetText">${magnetText}</textarea><br><br>
+                        <button class="copy-btn" onclick="copyMagnets()">📋 一键复制所有磁力链接</button>
+                        &nbsp;&nbsp;
+                        <a href="/tools/torrent-to-magnet/download/${data.file}" download>
+                            <button style="background:#95a5a6; color:white;">📥 下载磁力文件</button>
+                        </a>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<p style="color:red">转换失败：${data.error || '未知错误'}</p>`;
+                }
+            } catch (err) {
+                resultDiv.innerHTML = `<p style="color:red">请求失败，请检查网络或后端服务</p>`;
             }
+        }
+
+        function copyMagnets() {
+            const textarea = document.getElementById('magnetText');
+            if (!textarea) return;
+
+            navigator.clipboard.writeText(textarea.value).then(() => {
+                const originalText = event.target.innerHTML;
+                event.target.innerHTML = '✅ 已复制！';
+                setTimeout(() => {
+                    event.target.innerHTML = originalText;
+                }, 2000);
+            }).catch(() => {
+                alert('复制失败，请手动选中复制');
+            });
         }
     </script>
 </body>

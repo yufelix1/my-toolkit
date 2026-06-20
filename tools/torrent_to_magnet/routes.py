@@ -72,7 +72,24 @@ def convert():
     return jsonify({
         "status": "success",
         "count": len(magnets),
+        "magnets": magnets,
         "file": os.path.basename(output_file)
+    })
+
+# 新增接口：仅获取磁力列表
+@torrent_to_magnet_bp.route('/magnets', methods=['GET'])
+def get_magnets():
+    torrent_files = glob.glob(os.path.join(INPUT_DIR, '**', '*.torrent'), recursive=True)
+    magnets = []
+    for t in torrent_files:
+        magnet = torrent_to_magnet(t)
+        if magnet:
+            magnets.append(magnet)
+    
+    return jsonify({
+        "status": "success",
+        "count": len(magnets),
+        "magnets": magnets
     })
 
 @torrent_to_magnet_bp.route('/download/<filename>')
