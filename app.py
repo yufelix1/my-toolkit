@@ -2,6 +2,7 @@ from flask import Flask, render_template
 from config import Config
 
 from tools.file_flatten import file_flatten_bp
+from tools.game_recording_review import game_recording_review_bp
 from tools.torrent_to_magnet import torrent_to_magnet_bp
 
 app = Flask(__name__, 
@@ -13,6 +14,7 @@ app.config.from_object(Config)
 
 # 注册蓝图
 app.register_blueprint(file_flatten_bp, url_prefix='/tools/file-flatten')
+app.register_blueprint(game_recording_review_bp, url_prefix='/tools/game-recording-review')
 app.register_blueprint(torrent_to_magnet_bp, url_prefix='/tools/torrent-to-magnet')
 
 @app.route('/', strict_slashes=False)

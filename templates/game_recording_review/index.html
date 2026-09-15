@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}游戏录屏审阅{% endblock %}
+{% block body_class %}review-page{% endblock %}
+{% block container_class %}review-container{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/game_recording_review.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="review-shell">
+    <header class="review-header">
+        <a class="back-link" href="/tools" aria-label="返回工具集" title="返回工具集">
+            <svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m15 18-6-6 6-6"></path>
+                <path d="M9 12h12"></path>
+            </svg>
+        </a>
+        <div class="review-title">
+            <h1>游戏录屏审阅</h1>
+            <p id="root-badge">未配置录屏根目录</p>
+        </div>
+        <div class="review-header-actions">
+            <button id="refresh-button" class="icon-button" type="button" aria-label="重新扫描" title="重新扫描" disabled>
+                <svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M21 12a9 9 0 0 0-15.22-6.22L3 8"></path>
+                    <path d="M3 3v5h5"></path>
+                    <path d="M3 12a9 9 0 0 0 15.22 6.22L21 16"></path>
+                    <path d="M16 16h5v5"></path>
+                </svg>
+            </button>
+            <button id="open-settings-button" class="icon-button" type="button" aria-label="设置" title="设置">
+                <svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <div id="status" class="review-status" role="status" hidden></div>
+
+    <div id="setup-empty" class="setup-empty" hidden>
+        <strong>未配置录屏根目录</strong>
+        <button id="setup-button" type="button">打开设置</button>
+    </div>
+
+    <main id="review-content" hidden>
+        <dl class="review-stats" aria-label="扫描统计">
+            <div><dt>游戏</dt><dd id="game-count">0</dd></div>
+            <div><dt>随机目录</dt><dd id="directory-count">0</dd></div>
+            <div><dt>录屏</dt><dd id="recording-count">0</dd></div>
+            <div><dt>空目录</dt><dd id="empty-count">0</dd></div>
+        </dl>
+
+        <div class="review-controls">
+            <div class="view-tabs" role="tablist" aria-label="审阅视图">
+                <button class="view-tab active" type="button" role="tab" aria-selected="true" data-view="recordings">
+                    录屏 <span id="recording-tab-count">0</span>
+                </button>
+                <button class="view-tab" type="button" role="tab" aria-selected="false" data-view="empty">
+                    空目录 <span id="empty-tab-count">0</span>
+                </button>
+            </div>
+            <label class="filter-field">
+                <span class="sr-only">筛选录屏</span>
+                <input id="filter-input" type="text" placeholder="搜索游戏 ID、目录或文件名">
+            </label>
+        </div>
+
+        <section id="recordings-view" class="review-view" aria-label="录屏列表">
+            <div id="game-groups"></div>
+            <div id="recordings-empty" class="content-empty" hidden>没有匹配的录屏</div>
+        </section>
+
+        <section id="empty-view" class="review-view" aria-label="空目录列表" hidden>
+            <div class="empty-toolbar">
+                <p><strong id="empty-heading-count">0</strong> 个可安全删除的空随机目录</p>
+                <button id="clean-all-button" class="danger-outline" type="button">清理全部</button>
+            </div>
+            <div id="empty-directory-list" class="empty-directory-list"></div>
+            <div id="directories-empty" class="content-empty" hidden>没有空目录</div>
+        </section>
+    </main>
+</div>
+
+<dialog id="settings-dialog" class="settings-dialog">
+    <form id="settings-form">
+        <div class="settings-dialog-header">
+            <h2>录屏设置</h2>
+            <button id="close-settings-button" class="settings-close-button" type="button" aria-label="关闭设置" title="关闭设置">×</button>
+        </div>
+        <div class="settings-dialog-body">
+            <div class="path-field">
+                <label for="settings-root-path">录屏根目录</label>
+                <input id="settings-root-path" type="text" placeholder="/data/Game1" autocomplete="off">
+            </div>
+            <div id="settings-error" class="settings-error" role="alert" hidden></div>
+        </div>
+        <div class="settings-dialog-footer">
+            <button id="cancel-settings-button" class="secondary-button" type="button">取消</button>
+            <button id="save-settings-button" type="submit">保存并扫描</button>
+        </div>
+    </form>
+</dialog>
+
+<dialog id="preview-dialog" class="preview-dialog">
+    <div class="preview-dialog-header">
+        <div>
+            <strong id="preview-name"></strong>
+            <span id="preview-location"></span>
+        </div>
+        <button id="close-preview-button" class="close-button" type="button" aria-label="关闭预览" title="关闭预览">×</button>
+    </div>
+    <video id="preview-video" controls preload="metadata"></video>
+</dialog>
+
+<div id="toast" class="review-toast" role="status" hidden></div>
+
+<script src="{{ url_for('static', filename='js/game_recording_review.js') }}"></script>
+{% endblock %}

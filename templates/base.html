@@ -7,8 +7,8 @@
     <link rel="stylesheet" href="/static/css/style.css">
     {% block extra_head %}{% endblock %}
 </head>
-<body>
-    <div class="container">
+<body class="{% block body_class %}{% endblock %}">
+    <div class="container {% block container_class %}{% endblock %}">
         {% block content %}{% endblock %}
     </div>
 </body>
