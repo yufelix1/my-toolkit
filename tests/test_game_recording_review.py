@@ -81,6 +81,41 @@ class GameRecordingReviewTestCase(unittest.TestCase):
 
             self.assertTrue(os.path.isfile(video_path))
 
+    def test_api_deletes_recording_with_browser_safe_mtime(self):
+        with tempfile.TemporaryDirectory() as root:
+            video_path, cover_path, second_video, _, _ = self.create_recording_tree(root)
+            app = Flask(__name__)
+            app.register_blueprint(game_recording_review_bp, url_prefix="/tools/game-recording-review")
+            client = app.test_client()
+
+            scan_response = client.post(
+                "/tools/game-recording-review/api/scan",
+                json={"path": root},
+            )
+            scan_data = scan_response.get_json()
+            recording = next(
+                item
+                for game in scan_data["games"]
+                for item in game["recordings"]
+                if item["name"].startswith("53d3")
+            )
+            self.assertIsInstance(recording["mtime_ns"], str)
+
+            delete_response = client.delete(
+                "/tools/game-recording-review/api/recording",
+                json={
+                    "scan_id": scan_data["scan_id"],
+                    "path": recording["path"],
+                    "size": recording["size"],
+                    "mtime_ns": recording["mtime_ns"],
+                },
+            )
+
+            self.assertEqual(delete_response.status_code, 200)
+            self.assertFalse(os.path.exists(video_path))
+            self.assertFalse(os.path.exists(cover_path))
+            self.assertTrue(os.path.isfile(second_video))
+
     def test_empty_cleanup_preserves_nonempty_directories_and_game_directory(self):
         with tempfile.TemporaryDirectory() as root:
             _, _, _, empty_dir, orphan_dir = self.create_recording_tree(root)

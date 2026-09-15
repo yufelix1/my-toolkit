@@ -133,7 +133,9 @@ def scan_recordings(root_path):
                         "cover_path": os.path.join(directory_path, cover_name) if cover_name else None,
                         "size": stat.st_size,
                         "mtime": stat.st_mtime,
-                        "mtime_ns": stat.st_mtime_ns,
+                        # Keep nanoseconds as text so browsers do not round the
+                        # value beyond JavaScript's safe integer range.
+                        "mtime_ns": str(stat.st_mtime_ns),
                     }
                 )
 
