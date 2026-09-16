@@ -30,14 +30,28 @@ logger = logging.getLogger(__name__)
 
 
 def validate_root(root_path):
-    if not isinstance(root_path, str) or not root_path.strip():
-        return None, "请输入录屏根目录"
+    roots, validation_error = validate_roots([root_path])
+    return (roots[0], None) if not validation_error else (None, validation_error)
 
-    normalized_root = os.path.realpath(os.path.expanduser(root_path.strip()))
-    if not os.path.isdir(normalized_root):
-        return None, f"路径不存在或不是目录：{normalized_root}"
 
-    return normalized_root, None
+def validate_roots(root_paths):
+    if not isinstance(root_paths, list) or not root_paths:
+        return None, "请至少输入一个游戏根目录"
+
+    normalized_roots = []
+    seen = set()
+    for root_path in root_paths:
+        if not isinstance(root_path, str) or not root_path.strip():
+            return None, "游戏根目录格式无效"
+
+        normalized_root = os.path.realpath(os.path.expanduser(root_path.strip()))
+        if not os.path.isdir(normalized_root):
+            return None, f"路径不存在或不是目录：{normalized_root}"
+        if normalized_root not in seen:
+            seen.add(normalized_root)
+            normalized_roots.append(normalized_root)
+
+    return normalized_roots, None
 
 
 def _record_error(errors, path, error):
@@ -61,13 +75,22 @@ def _favorite_key(relative_path):
     return relative_path.replace(os.sep, "/")
 
 
-def normalize_ignored_directories(root_path, ignored_directories=None):
+def _path_is_within(root_path, candidate_path):
+    try:
+        return os.path.commonpath([root_path, candidate_path]) == root_path
+    except ValueError:
+        return False
+
+
+def normalize_ignored_directories(root_paths, ignored_directories=None):
     if ignored_directories is None:
         return []
     if not isinstance(ignored_directories, list):
         raise ValueError("跳过扫描目录必须是列表")
 
-    normalized_root = os.path.realpath(root_path)
+    if isinstance(root_paths, str):
+        root_paths = [root_paths]
+    normalized_roots = [os.path.realpath(root_path) for root_path in root_paths]
     normalized_directories = []
     seen = set()
 
@@ -80,49 +103,51 @@ def normalize_ignored_directories(root_path, ignored_directories=None):
             continue
 
         expanded_directory = os.path.expanduser(directory)
-        if os.path.isabs(expanded_directory):
-            unresolved_directory = expanded_directory
-        else:
-            relative_directory = expanded_directory.replace("\\", os.sep).replace(
-                "/", os.sep
-            )
-            unresolved_directory = os.path.join(normalized_root, relative_directory)
-        resolved_directory = os.path.realpath(unresolved_directory)
+        if not os.path.isabs(expanded_directory):
+            raise ValueError(f"跳过扫描目录必须使用绝对路径：{directory}")
+        resolved_directory = os.path.realpath(expanded_directory)
 
-        try:
-            inside_root = (
-                os.path.commonpath([normalized_root, resolved_directory])
-                == normalized_root
-            )
-        except ValueError:
-            inside_root = False
-        if not inside_root:
-            raise ValueError(f"跳过扫描目录超出录屏根目录：{directory}")
-
-        relative_directory = os.path.relpath(resolved_directory, normalized_root)
-        if relative_directory == ".":
+        containing_roots = [
+            root_path
+            for root_path in normalized_roots
+            if _path_is_within(root_path, resolved_directory)
+        ]
+        if not containing_roots:
+            raise ValueError(f"跳过扫描目录超出所有游戏根目录：{directory}")
+        if resolved_directory in containing_roots:
             raise ValueError("不能跳过录屏根目录")
-
-        relative_key = relative_directory.replace(os.sep, "/")
         if os.path.exists(resolved_directory) and not os.path.isdir(resolved_directory):
             raise ValueError(f"跳过扫描路径不是目录：{directory}")
-        if len(relative_key.split("/")) > 2:
+
+        supported_depth = any(
+            len(os.path.relpath(resolved_directory, root_path).split(os.sep)) <= 2
+            for root_path in containing_roots
+        )
+        if not supported_depth:
             raise ValueError(f"跳过扫描目录只支持游戏或录屏目录：{directory}")
 
-        if relative_key not in seen:
-            seen.add(relative_key)
-            normalized_directories.append(relative_key)
+        if resolved_directory not in seen:
+            seen.add(resolved_directory)
+            normalized_directories.append(resolved_directory)
 
     return normalized_directories
 
 
-def _is_ignored_path(relative_path, ignored_directories):
-    relative_key = relative_path.replace("\\", "/").strip("/")
+def _is_ignored_path(path, ignored_directories):
+    resolved_path = os.path.realpath(path)
     return any(
-        relative_key == ignored_directory
-        or relative_key.startswith(f"{ignored_directory}/")
+        resolved_path == ignored_directory
+        or _path_is_within(ignored_directory, resolved_path)
         for ignored_directory in ignored_directories
     )
+
+
+def _ignored_directories_for_root(root_path, ignored_directories):
+    return [
+        directory
+        for directory in ignored_directories
+        if _path_is_within(root_path, directory) and directory != root_path
+    ]
 
 
 def _read_favorites_unlocked(root_path):
@@ -194,128 +219,153 @@ def _write_favorites_unlocked(root_path, favorites):
                 pass
 
 
-def scan_recordings(root_path, ignored_directories=None):
-    """Scan root/game_id/random_directory without following symbolic links."""
-    root_path, validation_error = validate_root(root_path)
+def scan_recordings(root_paths, ignored_directories=None):
+    """Scan each root/game_id/recording_directory without following symlinks."""
+    if isinstance(root_paths, str):
+        root_paths = [root_paths]
+    root_paths, validation_error = validate_roots(root_paths)
     if validation_error:
         raise ValueError(validation_error)
-    ignored_directories = normalize_ignored_directories(root_path, ignored_directories)
+    ignored_directories = normalize_ignored_directories(root_paths, ignored_directories)
 
     errors = []
-    games = []
+    games_by_id = {}
     empty_directories = []
     directory_count = 0
 
-    try:
-        favorites = _read_favorites(root_path)
-    except (OSError, ValueError) as error:
-        _record_error(errors, _favorites_path(root_path), error)
-        favorites = {}
-
-    for game_entry in _directory_entries(root_path, errors) or ():
-        if _is_ignored_path(game_entry.name, ignored_directories):
-            continue
+    for root_path in root_paths:
         try:
-            if not game_entry.is_dir(follow_symlinks=False):
-                continue
-        except OSError as error:
-            _record_error(errors, game_entry.path, error)
-            continue
+            favorites = _read_favorites(root_path)
+        except (OSError, ValueError) as error:
+            _record_error(errors, _favorites_path(root_path), error)
+            favorites = {}
 
-        recordings = []
-        game_directory_count = 0
-
-        for random_entry in _directory_entries(game_entry.path, errors) or ():
-            directory_path = os.path.join(game_entry.name, random_entry.name)
-            if _is_ignored_path(directory_path, ignored_directories):
+        for game_entry in _directory_entries(root_path, errors) or ():
+            if _is_ignored_path(game_entry.path, ignored_directories):
                 continue
             try:
-                if not random_entry.is_dir(follow_symlinks=False):
+                if not game_entry.is_dir(follow_symlinks=False):
                     continue
             except OSError as error:
-                _record_error(errors, random_entry.path, error)
+                _record_error(errors, game_entry.path, error)
                 continue
 
-            directory_count += 1
-            game_directory_count += 1
-            entries = _directory_entries(random_entry.path, errors)
+            game = games_by_id.setdefault(
+                game_entry.name,
+                {
+                    "game_id": game_entry.name,
+                    "directory_count": 0,
+                    "recordings": [],
+                },
+            )
 
-            if entries is None:
-                continue
-
-            if not entries:
-                empty_directories.append(
-                    {
-                        "game_id": game_entry.name,
-                        "directory_id": random_entry.name,
-                        "path": directory_path,
-                    }
+            for random_entry in _directory_entries(game_entry.path, errors) or ():
+                relative_directory_path = os.path.join(
+                    game_entry.name,
+                    random_entry.name,
                 )
-                continue
-
-            covers = {}
-            videos = []
-            for media_entry in entries:
+                if _is_ignored_path(random_entry.path, ignored_directories):
+                    continue
                 try:
-                    if not media_entry.is_file(follow_symlinks=False):
+                    if not random_entry.is_dir(follow_symlinks=False):
                         continue
                 except OSError as error:
-                    _record_error(errors, media_entry.path, error)
+                    _record_error(errors, random_entry.path, error)
                     continue
 
-                stem, extension = os.path.splitext(media_entry.name)
-                extension = extension.lower()
-                if extension in COVER_EXTENSIONS:
-                    covers.setdefault(stem.lower(), {})[extension] = media_entry.name
-                elif extension in VIDEO_EXTENSIONS:
-                    videos.append(media_entry)
+                directory_count += 1
+                game["directory_count"] += 1
+                entries = _directory_entries(random_entry.path, errors)
 
-            for video_entry in videos:
-                try:
-                    stat = video_entry.stat(follow_symlinks=False)
-                except OSError as error:
-                    _record_error(errors, video_entry.path, error)
+                if entries is None:
                     continue
 
-                stem = os.path.splitext(video_entry.name)[0]
-                matching_covers = covers.get(stem.lower(), {})
-                cover_name = next(
-                    (matching_covers[extension] for extension in COVER_EXTENSIONS if extension in matching_covers),
-                    None,
-                )
-                relative_path = os.path.join(directory_path, video_entry.name)
-                favorite_metadata = favorites.get(_favorite_key(relative_path))
-                recordings.append(
-                    {
-                        "game_id": game_entry.name,
-                        "directory_id": random_entry.name,
-                        "directory_path": directory_path,
-                        "name": video_entry.name,
-                        "path": relative_path,
-                        "cover_path": os.path.join(directory_path, cover_name) if cover_name else None,
-                        "size": stat.st_size,
-                        "mtime": stat.st_mtime,
-                        # Keep nanoseconds as text so browsers do not round the
-                        # value beyond JavaScript's safe integer range.
-                        "mtime_ns": str(stat.st_mtime_ns),
-                        "favorite": favorite_metadata is not None,
-                        "favorited_at": (
-                            favorite_metadata["favorited_at"] if favorite_metadata else None
+                if not entries:
+                    empty_directories.append(
+                        {
+                            "root": root_path,
+                            "game_id": game_entry.name,
+                            "directory_id": random_entry.name,
+                            "path": relative_directory_path,
+                        }
+                    )
+                    continue
+
+                covers = {}
+                videos = []
+                for media_entry in entries:
+                    try:
+                        if not media_entry.is_file(follow_symlinks=False):
+                            continue
+                    except OSError as error:
+                        _record_error(errors, media_entry.path, error)
+                        continue
+
+                    stem, extension = os.path.splitext(media_entry.name)
+                    extension = extension.lower()
+                    if extension in COVER_EXTENSIONS:
+                        covers.setdefault(stem.lower(), {})[extension] = media_entry.name
+                    elif extension in VIDEO_EXTENSIONS:
+                        videos.append(media_entry)
+
+                for video_entry in videos:
+                    try:
+                        stat = video_entry.stat(follow_symlinks=False)
+                    except OSError as error:
+                        _record_error(errors, video_entry.path, error)
+                        continue
+
+                    stem = os.path.splitext(video_entry.name)[0]
+                    matching_covers = covers.get(stem.lower(), {})
+                    cover_name = next(
+                        (
+                            matching_covers[extension]
+                            for extension in COVER_EXTENSIONS
+                            if extension in matching_covers
                         ),
-                    }
-                )
+                        None,
+                    )
+                    relative_path = os.path.join(
+                        relative_directory_path,
+                        video_entry.name,
+                    )
+                    favorite_metadata = favorites.get(_favorite_key(relative_path))
+                    game["recordings"].append(
+                        {
+                            "root": root_path,
+                            "game_id": game_entry.name,
+                            "directory_id": random_entry.name,
+                            "directory_path": relative_directory_path,
+                            "name": video_entry.name,
+                            "path": relative_path,
+                            "cover_path": (
+                                os.path.join(relative_directory_path, cover_name)
+                                if cover_name
+                                else None
+                            ),
+                            "size": stat.st_size,
+                            "mtime": stat.st_mtime,
+                            # Keep nanoseconds as text so browsers do not round the
+                            # value beyond JavaScript's safe integer range.
+                            "mtime_ns": str(stat.st_mtime_ns),
+                            "favorite": favorite_metadata is not None,
+                            "favorited_at": (
+                                favorite_metadata["favorited_at"]
+                                if favorite_metadata
+                                else None
+                            ),
+                        }
+                    )
 
-        recordings.sort(key=lambda item: (-item["mtime"], item["name"].lower()))
-        games.append(
-            {
-                "game_id": game_entry.name,
-                "directory_count": game_directory_count,
-                "recordings": recordings,
-            }
+    games = sorted(games_by_id.values(), key=lambda game: game["game_id"].lower())
+    for game in games:
+        game["recordings"].sort(
+            key=lambda item: (-item["mtime"], item["name"].lower(), item["root"])
         )
 
     return {
-        "root": root_path,
+        "root": root_paths[0],
+        "roots": root_paths,
         "summary": {
             "game_count": len(games),
             "directory_count": directory_count,
@@ -329,11 +379,11 @@ def scan_recordings(root_path, ignored_directories=None):
     }
 
 
-def _remember_root(root_path, ignored_directories=None):
+def _remember_roots(root_paths, ignored_directories=None):
     scan_id = secrets.token_urlsafe(18)
     with _scan_roots_lock:
         _scan_roots[scan_id] = {
-            "root": root_path,
+            "roots": list(root_paths),
             "ignored_directories": list(ignored_directories or ()),
         }
         _scan_roots.move_to_end(scan_id)
@@ -352,9 +402,19 @@ def _get_scan_context(scan_id):
         return context
 
 
-def _get_scan_root(scan_id):
+def _get_scan_root(scan_id, requested_root=None):
     context = _get_scan_context(scan_id)
-    return context["root"] if context else None
+    if not context:
+        return None
+
+    roots = context["roots"]
+    if requested_root is None:
+        return roots[0] if len(roots) == 1 else None
+    if not isinstance(requested_root, str):
+        return None
+
+    normalized_root = os.path.realpath(os.path.expanduser(requested_root.strip()))
+    return normalized_root if normalized_root in roots else None
 
 
 def _resolve_relative_path(root_path, relative_path, expected_parts, extensions=None):
@@ -472,7 +532,11 @@ def delete_recording(root_path, relative_path, expected_size, expected_mtime_ns)
     return deleted
 
 
-def find_empty_recording_directories(root_path, ignored_directories=None):
+def find_empty_recording_directories(
+    root_path,
+    ignored_directories=None,
+    game_id=None,
+):
     root_path, validation_error = validate_root(root_path)
     if validation_error:
         raise ValueError(validation_error)
@@ -481,7 +545,9 @@ def find_empty_recording_directories(root_path, ignored_directories=None):
     errors = []
     empty_directories = []
     for game_entry in _directory_entries(root_path, errors) or ():
-        if _is_ignored_path(game_entry.name, ignored_directories):
+        if game_id is not None and game_entry.name != game_id:
+            continue
+        if _is_ignored_path(game_entry.path, ignored_directories):
             continue
         try:
             if not game_entry.is_dir(follow_symlinks=False):
@@ -492,7 +558,7 @@ def find_empty_recording_directories(root_path, ignored_directories=None):
 
         for random_entry in _directory_entries(game_entry.path, errors) or ():
             directory_path = os.path.join(game_entry.name, random_entry.name)
-            if _is_ignored_path(directory_path, ignored_directories):
+            if _is_ignored_path(random_entry.path, ignored_directories):
                 continue
             try:
                 if not random_entry.is_dir(follow_symlinks=False):
@@ -510,19 +576,20 @@ def delete_empty_recording_directories(
     root_path,
     relative_path=None,
     ignored_directories=None,
+    game_id=None,
 ):
     ignored_directories = normalize_ignored_directories(root_path, ignored_directories)
     if relative_path is None:
         candidates, errors = find_empty_recording_directories(
             root_path,
             ignored_directories,
+            game_id,
         )
     else:
-        if isinstance(relative_path, str) and _is_ignored_path(
-            relative_path,
-            ignored_directories,
-        ):
-            return [], [f"{relative_path}：该目录已设置为跳过扫描"]
+        if isinstance(relative_path, str):
+            candidate_path = os.path.join(root_path, relative_path)
+            if _is_ignored_path(candidate_path, ignored_directories):
+                return [], [f"{relative_path}：该目录已设置为跳过扫描"]
         candidates, errors = [relative_path], []
 
     deleted = []
@@ -554,24 +621,30 @@ def index():
 @game_recording_review_bp.route("/api/scan", methods=["POST"])
 def api_scan():
     data = request.get_json(silent=True) or {}
-    root_path, validation_error = validate_root(data.get("path"))
-    if validation_error:
-        return _json_error(validation_error, 400)
+    root_paths = data.get("paths")
+    if root_paths is None:
+        root_paths = [data.get("path")] if data.get("path") is not None else []
 
     try:
-        result = scan_recordings(root_path, data.get("ignored_directories"))
+        result = scan_recordings(root_paths, data.get("ignored_directories"))
     except ValueError as error:
         return _json_error(str(error), 400)
-    result["scan_id"] = _remember_root(root_path, result["ignored_directories"])
+    result["scan_id"] = _remember_roots(
+        result["roots"],
+        result["ignored_directories"],
+    )
     result["success"] = not result["errors"]
     return jsonify(result)
 
 
 @game_recording_review_bp.route("/media/<scan_id>/<path:relative_path>")
 def media(scan_id, relative_path):
-    root_path = _get_scan_root(scan_id)
-    if not root_path:
+    scan_context = _get_scan_context(scan_id)
+    if not scan_context:
         return _json_error("扫描已失效，请重新扫描", 404)
+    root_path = _get_scan_root(scan_id, request.args.get("root"))
+    if not root_path:
+        return _json_error("媒体所属根目录无效，请重新扫描", 400)
 
     try:
         media_path, normalized_relative_path = _resolve_relative_path(
@@ -591,9 +664,12 @@ def media(scan_id, relative_path):
 @game_recording_review_bp.route("/api/recording", methods=["DELETE"])
 def api_delete_recording():
     data = request.get_json(silent=True) or {}
-    root_path = _get_scan_root(data.get("scan_id"))
-    if not root_path:
+    scan_context = _get_scan_context(data.get("scan_id"))
+    if not scan_context:
         return _json_error("扫描已失效，请重新扫描", 404)
+    root_path = _get_scan_root(data.get("scan_id"), data.get("root"))
+    if not root_path:
+        return _json_error("录屏所属根目录无效，请重新扫描", 400)
 
     try:
         deleted = delete_recording(
@@ -617,9 +693,12 @@ def api_delete_recording():
 @game_recording_review_bp.route("/api/recording/favorite", methods=["PATCH"])
 def api_set_recording_favorite():
     data = request.get_json(silent=True) or {}
-    root_path = _get_scan_root(data.get("scan_id"))
-    if not root_path:
+    scan_context = _get_scan_context(data.get("scan_id"))
+    if not scan_context:
         return _json_error("扫描已失效，请重新扫描", 404)
+    root_path = _get_scan_root(data.get("scan_id"), data.get("root"))
+    if not root_path:
+        return _json_error("录屏所属根目录无效，请重新扫描", 400)
 
     try:
         result = set_recording_favorite(
@@ -644,11 +723,57 @@ def api_delete_empty_directories():
     if not scan_context:
         return _json_error("扫描已失效，请重新扫描", 404)
 
-    deleted, errors = delete_empty_recording_directories(
-        scan_context["root"],
-        data.get("path"),
-        scan_context["ignored_directories"],
-    )
+    requested_directories = data.get("directories")
+    deletion_jobs = []
+    if requested_directories is not None:
+        if not isinstance(requested_directories, list):
+            return _json_error("空目录列表无效", 400)
+        seen = set()
+        for directory in requested_directories:
+            if not isinstance(directory, dict):
+                return _json_error("空目录列表无效", 400)
+            root_path = _get_scan_root(
+                data.get("scan_id"),
+                directory.get("root"),
+            )
+            relative_path = directory.get("path")
+            if not root_path or not isinstance(relative_path, str):
+                return _json_error("空目录所属根目录或路径无效，请重新扫描", 400)
+            key = (root_path, relative_path)
+            if key not in seen:
+                seen.add(key)
+                deletion_jobs.append((root_path, relative_path, None))
+    else:
+        relative_path = data.get("path")
+        game_id = data.get("game_id")
+        if game_id is not None and not isinstance(game_id, str):
+            return _json_error("游戏 ID 无效", 400)
+
+        if relative_path is None:
+            deletion_jobs = [
+                (root_path, None, game_id)
+                for root_path in scan_context["roots"]
+            ]
+        else:
+            root_path = _get_scan_root(data.get("scan_id"), data.get("root"))
+            if not root_path:
+                return _json_error("空目录所属根目录无效，请重新扫描", 400)
+            deletion_jobs = [(root_path, relative_path, game_id)]
+
+    deleted = []
+    errors = []
+    for root_path, relative_path, game_id in deletion_jobs:
+        root_deleted, root_errors = delete_empty_recording_directories(
+            root_path,
+            relative_path,
+            _ignored_directories_for_root(
+                root_path,
+                scan_context["ignored_directories"],
+            ),
+            game_id,
+        )
+        deleted.extend(root_deleted)
+        errors.extend(root_errors)
     return jsonify(
         {
             "success": not errors,

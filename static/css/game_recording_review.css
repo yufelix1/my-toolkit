@@ -150,7 +150,8 @@
 
 .settings-dialog .path-field input,
 .settings-dialog .path-field textarea,
-.filter-field input {
+.filter-field input,
+.game-filter-field select {
     margin: 0;
     border-color: var(--review-line);
     border-radius: 6px;
@@ -168,6 +169,10 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 13px;
     line-height: 1.5;
+}
+
+#settings-root-paths {
+    min-height: 92px;
 }
 
 .field-hint {
@@ -236,15 +241,30 @@
     font-size: 12px;
 }
 
-.filter-field {
-    width: min(380px, 45vw);
+.filter-controls {
+    display: grid;
+    width: min(580px, 55vw);
+    grid-template-columns: minmax(150px, 0.72fr) minmax(220px, 1.28fr);
+    gap: 8px;
     padding-bottom: 8px;
 }
 
-.filter-field input {
+.filter-field,
+.game-filter-field {
+    min-width: 0;
+}
+
+.filter-field input,
+.game-filter-field select {
+    width: 100%;
     height: 38px;
     padding: 8px 11px;
     font-size: 14px;
+}
+
+.game-filter-field select {
+    background: var(--review-surface);
+    color: var(--review-ink);
 }
 
 .game-group {
@@ -819,8 +839,9 @@
         order: 2;
     }
 
-    .filter-field {
+    .filter-controls {
         width: 100%;
+        grid-template-columns: minmax(118px, 0.72fr) minmax(0, 1.28fr);
         padding-bottom: 0;
     }
 

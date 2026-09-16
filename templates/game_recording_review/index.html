@@ -19,7 +19,7 @@
         </a>
         <div class="review-title">
             <h1>游戏录屏审阅</h1>
-            <p id="root-badge">未配置录屏根目录</p>
+            <p id="root-badge">未配置游戏根目录</p>
         </div>
         <div class="review-header-actions">
             <button id="refresh-button" class="icon-button" type="button" aria-label="重新扫描" title="重新扫描" disabled>
@@ -42,8 +42,8 @@
     <div id="status" class="review-status" role="status" hidden></div>
 
     <div id="setup-empty" class="setup-empty" hidden>
-        <strong>未配置录屏根目录</strong>
-        <p>选择录屏所在目录后，这里会显示封面、录屏和空目录。</p>
+        <strong>未配置游戏根目录</strong>
+        <p>添加一个或多个游戏根目录后，这里会按游戏 ID 汇总录屏。</p>
         <button id="setup-button" type="button">打开设置</button>
     </div>
 
@@ -60,10 +60,18 @@
                     空目录 <span id="empty-tab-count">0</span>
                 </button>
             </div>
-            <label class="filter-field">
-                <span class="sr-only">筛选录屏</span>
-                <input id="filter-input" type="text" placeholder="搜索游戏 ID、目录或文件名">
-            </label>
+            <div class="filter-controls">
+                <label class="game-filter-field">
+                    <span class="sr-only">按游戏 ID 筛选</span>
+                    <select id="game-filter" aria-label="按游戏 ID 筛选">
+                        <option value="">全部游戏</option>
+                    </select>
+                </label>
+                <label class="filter-field">
+                    <span class="sr-only">搜索录屏</span>
+                    <input id="filter-input" type="text" placeholder="搜索目录或文件名">
+                </label>
+            </div>
         </div>
 
         <section id="recordings-view" class="review-view" role="tabpanel" aria-label="录屏列表">
@@ -95,13 +103,14 @@
         </div>
         <div class="settings-dialog-body">
             <div class="path-field">
-                <label for="settings-root-path">录屏根目录</label>
-                <input id="settings-root-path" type="text" placeholder="/data/Game1" autocomplete="off">
+                <label for="settings-root-paths">游戏根目录</label>
+                <textarea id="settings-root-paths" rows="3" placeholder="/data/Game1&#10;/data/Game2" aria-describedby="root-paths-hint" autocomplete="off" spellcheck="false"></textarea>
+                <p id="root-paths-hint" class="field-hint">每行一个目录；目录下按游戏 ID 和录屏目录分组。</p>
             </div>
             <div class="path-field">
                 <label for="settings-ignored-directories">跳过扫描目录</label>
-                <textarea id="settings-ignored-directories" rows="4" placeholder="游戏 ID&#10;游戏 ID/录屏目录 ID" aria-describedby="ignored-directories-hint" autocomplete="off" spellcheck="false"></textarea>
-                <p id="ignored-directories-hint" class="field-hint">每行一个，可填写根目录下的相对路径或绝对路径。</p>
+                <textarea id="settings-ignored-directories" rows="4" placeholder="/data/Game1/游戏 ID&#10;/data/Game2/游戏 ID/录屏目录 ID" aria-describedby="ignored-directories-hint" autocomplete="off" spellcheck="false"></textarea>
+                <p id="ignored-directories-hint" class="field-hint">每行一个绝对路径，且必须位于任一游戏根目录内。</p>
             </div>
             <div id="settings-error" class="settings-error" role="alert" hidden></div>
         </div>
