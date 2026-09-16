@@ -73,6 +73,7 @@ elements.refreshButton.addEventListener("click", () => scanRoots(reviewState.roo
 
 elements.gameFilter.addEventListener("change", event => {
     reviewState.gameId = event.target.value;
+    updateViewCounts();
     renderRecordings();
     renderFavorites();
     renderEmptyDirectories();
@@ -306,17 +307,24 @@ function hideStatus() {
 }
 
 function renderAll() {
-    const summary = reviewState.summary;
-    const favoriteCount = reviewState.games.reduce(
-        (count, game) => count + game.recordings.filter(recording => recording.favorite).length,
-        0,
-    );
-    elements.recordingTabCount.textContent = summary.recording_count;
-    elements.favoriteTabCount.textContent = favoriteCount;
-    elements.emptyTabCount.textContent = summary.empty_directory_count;
+    updateViewCounts();
     renderRecordings();
     renderFavorites();
     renderEmptyDirectories();
+}
+
+function updateViewCounts() {
+    const games = reviewState.gameId
+        ? reviewState.games.filter(game => game.game_id === reviewState.gameId)
+        : reviewState.games;
+    const recordings = games.flatMap(game => game.recordings);
+    const emptyDirectoryCount = reviewState.emptyDirectories.filter(
+        directory => !reviewState.gameId || directory.game_id === reviewState.gameId,
+    ).length;
+
+    elements.recordingTabCount.textContent = recordings.length;
+    elements.favoriteTabCount.textContent = recordings.filter(recording => recording.favorite).length;
+    elements.emptyTabCount.textContent = emptyDirectoryCount;
 }
 
 function recordingMatches(recording) {
