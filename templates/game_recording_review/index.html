@@ -48,19 +48,15 @@
     </div>
 
     <main id="review-content" hidden>
-        <dl class="review-stats" aria-label="扫描统计">
-            <div><dt>游戏</dt><dd id="game-count">0</dd></div>
-            <div><dt>目录</dt><dd id="directory-count">0</dd></div>
-            <div><dt>录屏</dt><dd id="recording-count">0</dd></div>
-            <div><dt>空目录</dt><dd id="empty-count">0</dd></div>
-        </dl>
-
         <div class="review-controls">
             <div class="view-tabs" role="tablist" aria-label="审阅视图">
-                <button class="view-tab active" type="button" role="tab" aria-selected="true" data-view="recordings">
+                <button class="view-tab active" type="button" role="tab" aria-selected="true" aria-controls="recordings-view" data-view="recordings">
                     录屏 <span id="recording-tab-count">0</span>
                 </button>
-                <button class="view-tab" type="button" role="tab" aria-selected="false" data-view="empty">
+                <button class="view-tab" type="button" role="tab" aria-selected="false" aria-controls="favorites-view" data-view="favorites">
+                    收藏 <span id="favorite-tab-count">0</span>
+                </button>
+                <button class="view-tab" type="button" role="tab" aria-selected="false" aria-controls="empty-view" data-view="empty">
                     空目录 <span id="empty-tab-count">0</span>
                 </button>
             </div>
@@ -70,12 +66,17 @@
             </label>
         </div>
 
-        <section id="recordings-view" class="review-view" aria-label="录屏列表">
+        <section id="recordings-view" class="review-view" role="tabpanel" aria-label="录屏列表">
             <div id="game-groups"></div>
             <div id="recordings-empty" class="content-empty" hidden>没有匹配的录屏</div>
         </section>
 
-        <section id="empty-view" class="review-view" aria-label="空目录列表" hidden>
+        <section id="favorites-view" class="review-view" role="tabpanel" aria-label="收藏列表" hidden>
+            <div id="favorite-game-groups"></div>
+            <div id="favorites-empty" class="content-empty" hidden>还没有收藏录屏</div>
+        </section>
+
+        <section id="empty-view" class="review-view" role="tabpanel" aria-label="空目录列表" hidden>
             <div class="empty-toolbar">
                 <p><strong id="empty-heading-count">0</strong> 个可安全删除的空目录</p>
                 <button id="clean-all-button" class="danger-outline" type="button">清理全部</button>
@@ -96,6 +97,11 @@
             <div class="path-field">
                 <label for="settings-root-path">录屏根目录</label>
                 <input id="settings-root-path" type="text" placeholder="/data/Game1" autocomplete="off">
+            </div>
+            <div class="path-field">
+                <label for="settings-ignored-directories">跳过扫描目录</label>
+                <textarea id="settings-ignored-directories" rows="4" placeholder="游戏 ID&#10;游戏 ID/录屏目录 ID" aria-describedby="ignored-directories-hint" autocomplete="off" spellcheck="false"></textarea>
+                <p id="ignored-directories-hint" class="field-hint">每行一个，可填写根目录下的相对路径或绝对路径。</p>
             </div>
             <div id="settings-error" class="settings-error" role="alert" hidden></div>
         </div>

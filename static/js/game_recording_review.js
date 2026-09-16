@@ -3,12 +3,14 @@ const reviewState = {
     root: "",
     games: [],
     emptyDirectories: [],
+    ignoredDirectories: [],
     summary: {},
     view: "recordings",
     filter: "",
 };
 
 const ROOT_STORAGE_KEY = "gameRecordingReview.rootPath";
+const IGNORED_DIRECTORIES_STORAGE_KEY = "gameRecordingReview.ignoredDirectories";
 
 const elements = {
     rootBadge: document.getElementById("root-badge"),
@@ -18,15 +20,15 @@ const elements = {
     setupButton: document.getElementById("setup-button"),
     status: document.getElementById("status"),
     content: document.getElementById("review-content"),
-    gameCount: document.getElementById("game-count"),
-    directoryCount: document.getElementById("directory-count"),
-    recordingCount: document.getElementById("recording-count"),
-    emptyCount: document.getElementById("empty-count"),
     recordingTabCount: document.getElementById("recording-tab-count"),
+    favoriteTabCount: document.getElementById("favorite-tab-count"),
     emptyTabCount: document.getElementById("empty-tab-count"),
     filterInput: document.getElementById("filter-input"),
     gameGroups: document.getElementById("game-groups"),
     recordingsEmpty: document.getElementById("recordings-empty"),
+    favoritesView: document.getElementById("favorites-view"),
+    favoriteGameGroups: document.getElementById("favorite-game-groups"),
+    favoritesEmpty: document.getElementById("favorites-empty"),
     emptyView: document.getElementById("empty-view"),
     recordingsView: document.getElementById("recordings-view"),
     emptyDirectoryList: document.getElementById("empty-directory-list"),
@@ -41,6 +43,7 @@ const elements = {
     settingsDialog: document.getElementById("settings-dialog"),
     settingsForm: document.getElementById("settings-form"),
     settingsRootPath: document.getElementById("settings-root-path"),
+    settingsIgnoredDirectories: document.getElementById("settings-ignored-directories"),
     settingsError: document.getElementById("settings-error"),
     closeSettingsButton: document.getElementById("close-settings-button"),
     cancelSettingsButton: document.getElementById("cancel-settings-button"),
@@ -52,7 +55,11 @@ let toastTimer;
 
 elements.settingsForm.addEventListener("submit", async event => {
     event.preventDefault();
-    await scanRoot(elements.settingsRootPath.value.trim(), {fromSettings: true, persist: true});
+    await scanRoot(elements.settingsRootPath.value.trim(), {
+        fromSettings: true,
+        persist: true,
+        ignoredDirectories: parseIgnoredDirectories(elements.settingsIgnoredDirectories.value),
+    });
 });
 
 elements.openSettingsButton.addEventListener("click", openSettings);
@@ -64,6 +71,7 @@ elements.refreshButton.addEventListener("click", () => scanRoot(reviewState.root
 elements.filterInput.addEventListener("input", event => {
     reviewState.filter = event.target.value.trim().toLowerCase();
     renderRecordings();
+    renderFavorites();
     renderEmptyDirectories();
 });
 
@@ -93,7 +101,11 @@ async function requestJson(url, options) {
 }
 
 async function scanRoot(path, options = {}) {
-    const {fromSettings = false, persist = false} = options;
+    const {
+        fromSettings = false,
+        persist = false,
+        ignoredDirectories = reviewState.ignoredDirectories,
+    } = options;
     if (!path) {
         if (fromSettings) {
             showSettingsError("请输入录屏根目录");
@@ -111,21 +123,23 @@ async function scanRoot(path, options = {}) {
         const data = await requestJson("/tools/game-recording-review/api/scan", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({path}),
+            body: JSON.stringify({path, ignored_directories: ignoredDirectories}),
         });
 
         reviewState.scanId = data.scan_id;
         reviewState.root = data.root;
         reviewState.games = data.games;
         reviewState.emptyDirectories = data.empty_directories;
+        reviewState.ignoredDirectories = data.ignored_directories;
         reviewState.summary = data.summary;
         elements.settingsRootPath.value = data.root;
+        elements.settingsIgnoredDirectories.value = data.ignored_directories.join("\n");
         elements.rootBadge.textContent = data.root;
         elements.setupEmpty.hidden = true;
         elements.content.hidden = false;
         renderAll();
 
-        if (persist) saveRoot(data.root);
+        if (persist) saveSettings(data.root, data.ignored_directories);
         if (elements.settingsDialog.open) elements.settingsDialog.close();
 
         if (data.errors.length) {
@@ -156,6 +170,8 @@ function setScanning(scanning) {
 
 function initializeRoot() {
     const savedRoot = loadRoot();
+    const savedIgnoredDirectories = loadIgnoredDirectories();
+    elements.settingsIgnoredDirectories.value = savedIgnoredDirectories.join("\n");
     if (!savedRoot) {
         elements.setupEmpty.hidden = false;
         return;
@@ -163,11 +179,14 @@ function initializeRoot() {
 
     elements.settingsRootPath.value = savedRoot;
     elements.rootBadge.textContent = savedRoot;
-    scanRoot(savedRoot);
+    scanRoot(savedRoot, {ignoredDirectories: savedIgnoredDirectories});
 }
 
 function openSettings() {
     elements.settingsRootPath.value = reviewState.root || loadRoot();
+    elements.settingsIgnoredDirectories.value = (
+        reviewState.root ? reviewState.ignoredDirectories : loadIgnoredDirectories()
+    ).join("\n");
     hideSettingsError();
     elements.settingsDialog.showModal();
     elements.settingsRootPath.focus();
@@ -196,11 +215,32 @@ function loadRoot() {
     }
 }
 
-function saveRoot(path) {
+function loadIgnoredDirectories() {
+    try {
+        const directories = JSON.parse(
+            localStorage.getItem(IGNORED_DIRECTORIES_STORAGE_KEY) || "[]",
+        );
+        return Array.isArray(directories)
+            ? directories.filter(directory => typeof directory === "string")
+            : [];
+    } catch (error) {
+        return [];
+    }
+}
+
+function parseIgnoredDirectories(value) {
+    return value.split(/\r?\n/).map(directory => directory.trim()).filter(Boolean);
+}
+
+function saveSettings(path, ignoredDirectories) {
     try {
         localStorage.setItem(ROOT_STORAGE_KEY, path);
+        localStorage.setItem(
+            IGNORED_DIRECTORIES_STORAGE_KEY,
+            JSON.stringify(ignoredDirectories),
+        );
     } catch (error) {
-        showStatus("目录已载入，但浏览器无法保存该设置", "warning");
+        showStatus("目录已载入，但浏览器无法保存设置", "warning");
     }
 }
 
@@ -217,15 +257,17 @@ function hideStatus() {
 
 function renderAll() {
     const summary = reviewState.summary;
-    elements.gameCount.textContent = summary.game_count;
-    elements.directoryCount.textContent = summary.directory_count;
-    elements.recordingCount.textContent = summary.recording_count;
-    elements.emptyCount.textContent = summary.empty_directory_count;
+    const favoriteCount = reviewState.games.reduce(
+        (count, game) => count + game.recordings.filter(recording => recording.favorite).length,
+        0,
+    );
     elements.recordingTabCount.textContent = summary.recording_count;
+    elements.favoriteTabCount.textContent = favoriteCount;
     elements.emptyTabCount.textContent = summary.empty_directory_count;
     elements.emptyHeadingCount.textContent = summary.empty_directory_count;
     elements.cleanAllButton.disabled = summary.empty_directory_count === 0;
     renderRecordings();
+    renderFavorites();
     renderEmptyDirectories();
 }
 
@@ -236,11 +278,34 @@ function recordingMatches(recording) {
 }
 
 function renderRecordings() {
-    elements.gameGroups.replaceChildren();
+    renderRecordingGroups(
+        elements.gameGroups,
+        elements.recordingsEmpty,
+        recordingMatches,
+    );
+}
+
+function renderFavorites() {
+    const favoriteCount = reviewState.games.reduce(
+        (count, game) => count + game.recordings.filter(recording => recording.favorite).length,
+        0,
+    );
+    elements.favoritesEmpty.textContent = favoriteCount
+        ? "没有匹配的收藏录屏"
+        : "还没有收藏录屏";
+    renderRecordingGroups(
+        elements.favoriteGameGroups,
+        elements.favoritesEmpty,
+        recording => recording.favorite && recordingMatches(recording),
+    );
+}
+
+function renderRecordingGroups(container, emptyElement, predicate) {
+    container.replaceChildren();
     let visibleCount = 0;
 
     reviewState.games.forEach(game => {
-        const recordings = game.recordings.filter(recordingMatches);
+        const recordings = game.recordings.filter(predicate);
         if (!recordings.length) return;
         visibleCount += recordings.length;
 
@@ -259,10 +324,10 @@ function renderRecordings() {
         grid.className = "recording-grid";
         recordings.forEach(recording => grid.appendChild(createRecordingCard(recording)));
         section.append(header, grid);
-        elements.gameGroups.appendChild(section);
+        container.appendChild(section);
     });
 
-    elements.recordingsEmpty.hidden = visibleCount > 0;
+    emptyElement.hidden = visibleCount > 0;
 }
 
 function createRecordingCard(recording) {
@@ -376,6 +441,7 @@ async function toggleFavorite(recording, button) {
         recording.favorite = data.favorite;
         recording.favorited_at = data.favorited_at;
         updateFavoriteButton(button, recording);
+        renderAll();
         showToast(data.favorite ? "已收藏录屏" : "已取消收藏");
     } catch (error) {
         showStatus(error.message);
@@ -425,6 +491,7 @@ function commandButton(label, className, handler) {
 function setView(view) {
     reviewState.view = view;
     elements.recordingsView.hidden = view !== "recordings";
+    elements.favoritesView.hidden = view !== "favorites";
     elements.emptyView.hidden = view !== "empty";
     document.querySelectorAll(".view-tab").forEach(tab => {
         const active = tab.dataset.view === view;

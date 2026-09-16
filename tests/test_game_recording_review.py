@@ -10,6 +10,7 @@ from tools.game_recording_review.routes import (
     delete_empty_recording_directories,
     delete_recording,
     game_recording_review_bp,
+    normalize_ignored_directories,
     scan_recordings,
     set_recording_favorite,
 )
@@ -55,6 +56,51 @@ class GameRecordingReviewTestCase(unittest.TestCase):
             self.assertIsNone(covered["favorited_at"])
             self.assertEqual(result["empty_directories"][0]["directory_id"], "empty-directory")
             self.assertEqual(result["errors"], [])
+
+    def test_scan_skips_configured_game_and_recording_directories(self):
+        with tempfile.TemporaryDirectory() as root:
+            _, _, _, empty_dir, _ = self.create_recording_tree(root)
+            skipped_game = os.path.join(root, "skipped-game")
+            skipped_recording_dir = os.path.join(skipped_game, "recording-directory")
+            os.makedirs(skipped_recording_dir)
+            with open(os.path.join(skipped_recording_dir, "skipped.mp4"), "wb") as file:
+                file.write(b"skipped-video")
+
+            result = scan_recordings(
+                root,
+                [os.path.relpath(empty_dir, root), skipped_game],
+            )
+
+            self.assertEqual(result["summary"]["game_count"], 1)
+            self.assertEqual(result["summary"]["directory_count"], 2)
+            self.assertEqual(result["summary"]["recording_count"], 2)
+            self.assertEqual(result["summary"]["empty_directory_count"], 0)
+            self.assertEqual(
+                result["ignored_directories"],
+                [
+                    "18284674457949499456/empty-directory",
+                    "skipped-game",
+                ],
+            )
+            self.assertNotIn(
+                "skipped-game",
+                [game["game_id"] for game in result["games"]],
+            )
+
+    def test_ignored_directory_validation_rejects_unsafe_paths(self):
+        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as outside:
+            video_path, _, _, _, _ = self.create_recording_tree(root)
+
+            with self.assertRaisesRegex(ValueError, "必须是列表"):
+                normalize_ignored_directories(root, "game")
+            with self.assertRaisesRegex(ValueError, "超出录屏根目录"):
+                normalize_ignored_directories(root, [outside])
+            with self.assertRaisesRegex(ValueError, "不能跳过录屏根目录"):
+                normalize_ignored_directories(root, [root])
+            with self.assertRaisesRegex(ValueError, "不是目录"):
+                normalize_ignored_directories(root, [video_path])
+            with self.assertRaisesRegex(ValueError, "只支持游戏或录屏目录"):
+                normalize_ignored_directories(root, ["game/directory/nested"])
 
     def test_favorite_persists_in_root_metadata_and_scan_result(self):
         with tempfile.TemporaryDirectory() as root:
@@ -274,6 +320,62 @@ class GameRecordingReviewTestCase(unittest.TestCase):
             self.assertFalse(os.path.exists(empty_dir))
             self.assertTrue(os.path.isdir(orphan_dir))
             self.assertTrue(os.path.isdir(os.path.dirname(orphan_dir)))
+
+    def test_empty_cleanup_keeps_directories_ignored_by_scan(self):
+        with tempfile.TemporaryDirectory() as root:
+            _, _, _, empty_dir, _ = self.create_recording_tree(root)
+            ignored_directory = os.path.relpath(empty_dir, root)
+            app = Flask(__name__)
+            app.register_blueprint(
+                game_recording_review_bp,
+                url_prefix="/tools/game-recording-review",
+            )
+            client = app.test_client()
+
+            scan_response = client.post(
+                "/tools/game-recording-review/api/scan",
+                json={
+                    "path": root,
+                    "ignored_directories": [ignored_directory],
+                },
+            )
+            scan_data = scan_response.get_json()
+            cleanup_response = client.delete(
+                "/tools/game-recording-review/api/empty-directories",
+                json={"scan_id": scan_data["scan_id"], "path": None},
+            )
+            direct_cleanup_response = client.delete(
+                "/tools/game-recording-review/api/empty-directories",
+                json={
+                    "scan_id": scan_data["scan_id"],
+                    "path": ignored_directory,
+                },
+            )
+
+            self.assertEqual(scan_response.status_code, 200)
+            self.assertEqual(scan_data["ignored_directories"], [ignored_directory])
+            self.assertEqual(scan_data["summary"]["empty_directory_count"], 0)
+            self.assertEqual(cleanup_response.get_json()["deleted"], [])
+            self.assertTrue(direct_cleanup_response.get_json()["errors"])
+            self.assertTrue(os.path.isdir(empty_dir))
+
+    def test_scan_api_rejects_an_ignored_directory_outside_root(self):
+        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as outside:
+            self.create_recording_tree(root)
+            app = Flask(__name__)
+            app.register_blueprint(
+                game_recording_review_bp,
+                url_prefix="/tools/game-recording-review",
+            )
+            client = app.test_client()
+
+            response = client.post(
+                "/tools/game-recording-review/api/scan",
+                json={"path": root, "ignored_directories": [outside]},
+            )
+
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("超出录屏根目录", response.get_json()["message"])
 
     def test_api_serves_media_and_rejects_path_traversal(self):
         with tempfile.TemporaryDirectory() as root:

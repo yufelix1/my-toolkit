@@ -149,6 +149,7 @@
 }
 
 .settings-dialog .path-field input,
+.settings-dialog .path-field textarea,
 .filter-field input {
     margin: 0;
     border-color: var(--review-line);
@@ -158,6 +159,22 @@
 .path-field input {
     height: 44px;
     padding: 10px 12px;
+}
+
+.path-field textarea {
+    min-height: 112px;
+    padding: 10px 12px;
+    resize: vertical;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.field-hint {
+    margin-top: 6px;
+    color: var(--review-muted);
+    font-size: 12px;
+    line-height: 1.5;
 }
 
 .review-status {
@@ -176,37 +193,6 @@
     color: var(--warning);
 }
 
-.review-stats {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    margin: 0 0 20px;
-    border: 1px solid var(--review-line);
-    border-radius: 8px;
-    background: var(--review-surface);
-}
-
-.review-stats > div {
-    min-width: 0;
-    padding: 14px 18px;
-    border-right: 1px solid var(--review-line);
-}
-
-.review-stats > div:last-child {
-    border-right: 0;
-}
-
-.review-stats dt {
-    color: var(--review-muted);
-    font-size: 12px;
-}
-
-.review-stats dd {
-    margin-top: 2px;
-    font-size: 24px;
-    font-weight: 700;
-    line-height: 1.2;
-}
-
 .review-controls {
     display: flex;
     align-items: center;
@@ -219,9 +205,11 @@
 .view-tabs {
     display: flex;
     align-self: stretch;
+    overflow-x: auto;
 }
 
 .review-page .view-tab {
+    flex: 0 0 auto;
     min-height: 48px;
     padding: 10px 16px;
     border-bottom: 2px solid transparent;
@@ -651,6 +639,12 @@
     color: var(--review-ink);
 }
 
+.settings-dialog form {
+    display: grid;
+    max-height: calc(100dvh - 32px);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
 .settings-dialog::backdrop {
     background: rgba(16, 22, 20, 0.48);
 }
@@ -686,7 +680,10 @@
 }
 
 .settings-dialog-body {
+    display: grid;
+    gap: 16px;
     padding: 20px 16px;
+    overflow-y: auto;
 }
 
 .settings-error {
@@ -810,18 +807,6 @@
 
     .review-header {
         gap: 10px;
-    }
-
-    .review-stats {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .review-stats > div:nth-child(2) {
-        border-right: 0;
-    }
-
-    .review-stats > div:nth-child(-n + 2) {
-        border-bottom: 1px solid var(--review-line);
     }
 
     .review-controls {
