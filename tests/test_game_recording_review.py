@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 import unittest
@@ -5,10 +6,12 @@ import unittest
 from flask import Flask
 
 from tools.game_recording_review.routes import (
+    FAVORITES_FILENAME,
     delete_empty_recording_directories,
     delete_recording,
     game_recording_review_bp,
     scan_recordings,
+    set_recording_favorite,
 )
 
 
@@ -48,8 +51,66 @@ class GameRecordingReviewTestCase(unittest.TestCase):
             recordings = result["games"][0]["recordings"]
             covered = next(item for item in recordings if item["name"].startswith("53d3"))
             self.assertTrue(covered["cover_path"].endswith(".jpeg"))
+            self.assertFalse(covered["favorite"])
+            self.assertIsNone(covered["favorited_at"])
             self.assertEqual(result["empty_directories"][0]["directory_id"], "empty-directory")
             self.assertEqual(result["errors"], [])
+
+    def test_favorite_persists_in_root_metadata_and_scan_result(self):
+        with tempfile.TemporaryDirectory() as root:
+            video_path, _, _, _, _ = self.create_recording_tree(root)
+            relative_path = os.path.relpath(video_path, root)
+
+            favorite = set_recording_favorite(root, relative_path, True)
+
+            self.assertTrue(favorite["favorite"])
+            self.assertTrue(favorite["favorited_at"].endswith("Z"))
+            metadata_path = os.path.join(root, FAVORITES_FILENAME)
+            with open(metadata_path, encoding="utf-8") as metadata_file:
+                metadata = json.load(metadata_file)
+            favorite_key = relative_path.replace(os.sep, "/")
+            self.assertIn(favorite_key, metadata["favorites"])
+
+            scanned = scan_recordings(root)
+            recording = next(
+                item
+                for game in scanned["games"]
+                for item in game["recordings"]
+                if item["path"] == relative_path
+            )
+            self.assertTrue(recording["favorite"])
+            self.assertEqual(recording["favorited_at"], favorite["favorited_at"])
+            self.assertEqual(scanned["summary"]["game_count"], 1)
+
+            unfavorite = set_recording_favorite(root, relative_path, False)
+            self.assertFalse(unfavorite["favorite"])
+            self.assertIsNone(unfavorite["favorited_at"])
+            recording = next(
+                item
+                for game in scan_recordings(root)["games"]
+                for item in game["recordings"]
+                if item["path"] == relative_path
+            )
+            self.assertFalse(recording["favorite"])
+
+    def test_scan_reports_malformed_favorite_metadata_without_hiding_recordings(self):
+        with tempfile.TemporaryDirectory() as root:
+            self.create_recording_tree(root)
+            with open(os.path.join(root, FAVORITES_FILENAME), "w", encoding="utf-8") as metadata_file:
+                metadata_file.write("not json")
+
+            result = scan_recordings(root)
+
+            self.assertEqual(result["summary"]["recording_count"], 2)
+            self.assertEqual(len(result["errors"]), 1)
+            self.assertIn(FAVORITES_FILENAME, result["errors"][0])
+            self.assertTrue(
+                all(
+                    not recording["favorite"]
+                    for game in result["games"]
+                    for recording in game["recordings"]
+                )
+            )
 
     def test_delete_recording_removes_its_cover_and_preserves_other_video(self):
         with tempfile.TemporaryDirectory() as root:
@@ -63,6 +124,19 @@ class GameRecordingReviewTestCase(unittest.TestCase):
             self.assertFalse(os.path.exists(video_path))
             self.assertFalse(os.path.exists(cover_path))
             self.assertTrue(os.path.isfile(second_video))
+
+    def test_delete_recording_removes_its_favorite_metadata(self):
+        with tempfile.TemporaryDirectory() as root:
+            video_path, _, _, _, _ = self.create_recording_tree(root)
+            stat = os.stat(video_path)
+            relative_path = os.path.relpath(video_path, root)
+            set_recording_favorite(root, relative_path, True)
+
+            delete_recording(root, relative_path, stat.st_size, stat.st_mtime_ns)
+
+            with open(os.path.join(root, FAVORITES_FILENAME), encoding="utf-8") as metadata_file:
+                metadata = json.load(metadata_file)
+            self.assertNotIn(relative_path.replace(os.sep, "/"), metadata["favorites"])
 
     def test_delete_recording_rejects_a_file_changed_after_scan(self):
         with tempfile.TemporaryDirectory() as root:
@@ -85,7 +159,10 @@ class GameRecordingReviewTestCase(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             video_path, cover_path, second_video, _, _ = self.create_recording_tree(root)
             app = Flask(__name__)
-            app.register_blueprint(game_recording_review_bp, url_prefix="/tools/game-recording-review")
+            app.register_blueprint(
+                game_recording_review_bp,
+                url_prefix="/tools/game-recording-review",
+            )
             client = app.test_client()
 
             scan_response = client.post(
@@ -115,6 +192,76 @@ class GameRecordingReviewTestCase(unittest.TestCase):
             self.assertFalse(os.path.exists(video_path))
             self.assertFalse(os.path.exists(cover_path))
             self.assertTrue(os.path.isfile(second_video))
+
+    def test_favorite_api_updates_and_survives_a_new_scan(self):
+        with tempfile.TemporaryDirectory() as root:
+            video_path, _, _, _, _ = self.create_recording_tree(root)
+            app = Flask(__name__)
+            app.register_blueprint(
+                game_recording_review_bp,
+                url_prefix="/tools/game-recording-review",
+            )
+            client = app.test_client()
+
+            scan_data = client.post(
+                "/tools/game-recording-review/api/scan",
+                json={"path": root},
+            ).get_json()
+            relative_path = os.path.relpath(video_path, root)
+
+            favorite_response = client.patch(
+                "/tools/game-recording-review/api/recording/favorite",
+                json={
+                    "scan_id": scan_data["scan_id"],
+                    "path": relative_path,
+                    "favorite": True,
+                },
+            )
+
+            self.assertEqual(favorite_response.status_code, 200)
+            self.assertTrue(favorite_response.get_json()["favorite"])
+            rescanned = client.post(
+                "/tools/game-recording-review/api/scan",
+                json={"path": root},
+            ).get_json()
+            recording = next(
+                item
+                for game in rescanned["games"]
+                for item in game["recordings"]
+                if item["path"] == relative_path
+            )
+            self.assertTrue(recording["favorite"])
+
+    def test_favorite_api_rejects_invalid_state_and_path_traversal(self):
+        with tempfile.TemporaryDirectory() as root:
+            self.create_recording_tree(root)
+            app = Flask(__name__)
+            app.register_blueprint(game_recording_review_bp, url_prefix="/tools/game-recording-review")
+            client = app.test_client()
+            scan_id = client.post(
+                "/tools/game-recording-review/api/scan",
+                json={"path": root},
+            ).get_json()["scan_id"]
+
+            invalid_state = client.patch(
+                "/tools/game-recording-review/api/recording/favorite",
+                json={
+                    "scan_id": scan_id,
+                    "path": "game/directory/video.mp4",
+                    "favorite": "yes",
+                },
+            )
+            traversal = client.patch(
+                "/tools/game-recording-review/api/recording/favorite",
+                json={
+                    "scan_id": scan_id,
+                    "path": "../../outside.mp4",
+                    "favorite": True,
+                },
+            )
+
+            self.assertEqual(invalid_state.status_code, 400)
+            self.assertEqual(traversal.status_code, 400)
 
     def test_empty_cleanup_preserves_nonempty_directories_and_game_directory(self):
         with tempfile.TemporaryDirectory() as root:

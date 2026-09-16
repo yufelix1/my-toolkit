@@ -421,6 +421,65 @@
     white-space: nowrap;
 }
 
+.review-page .recording-favorite-button {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 1;
+    display: grid;
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    min-height: 34px;
+    padding: 0;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 6px;
+    background: rgba(17, 22, 21, 0.82);
+    color: #f5faf8;
+}
+
+.review-page .recording-favorite-button:hover:not(:disabled),
+.review-page .recording-favorite-button.is-favorite {
+    border-color: var(--review-accent);
+    background: var(--review-accent);
+    color: #f5faf8;
+}
+
+.review-page .recording-favorite-button.is-favorite:hover:not(:disabled) {
+    border-color: var(--review-accent-dark);
+    background: var(--review-accent-dark);
+}
+
+.review-page .recording-favorite-button:active:not(:disabled) {
+    transform: scale(0.94);
+}
+
+.review-page .recording-favorite-button:focus-visible {
+    outline: 2px solid #f5faf8;
+    outline-offset: 2px;
+}
+
+.review-page .recording-favorite-button:disabled {
+    border-color: rgba(255, 255, 255, 0.5);
+    background: rgba(17, 22, 21, 0.82);
+    color: #f5faf8;
+    cursor: wait;
+    opacity: 0.72;
+}
+
+.review-page .recording-favorite-button.is-favorite:disabled {
+    border-color: var(--review-accent);
+    background: var(--review-accent);
+}
+
+.favorite-glyph {
+    display: block;
+    font-family: Arial, sans-serif;
+    font-size: 19px;
+    line-height: 1;
+}
+
 .review-page .recording-delete-button {
     position: absolute;
     top: 8px;

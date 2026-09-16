@@ -318,6 +318,16 @@ function createRecordingCard(recording) {
 
     info.append(name, meta, directory);
 
+    const favoriteButton = document.createElement("button");
+    favoriteButton.className = "recording-favorite-button";
+    favoriteButton.type = "button";
+    const favoriteGlyph = document.createElement("span");
+    favoriteGlyph.className = "favorite-glyph";
+    favoriteGlyph.setAttribute("aria-hidden", "true");
+    favoriteButton.appendChild(favoriteGlyph);
+    updateFavoriteButton(favoriteButton, recording);
+    favoriteButton.addEventListener("click", () => toggleFavorite(recording, favoriteButton));
+
     const deleteButton = document.createElement("button");
     deleteButton.className = "recording-delete-button";
     deleteButton.type = "button";
@@ -334,8 +344,45 @@ function createRecordingCard(recording) {
     `;
     deleteButton.addEventListener("click", () => confirmDeleteRecording(recording));
 
-    article.append(coverButton, info, deleteButton);
+    article.append(coverButton, info, favoriteButton, deleteButton);
     return article;
+}
+
+function updateFavoriteButton(button, recording) {
+    const favorite = Boolean(recording.favorite);
+    const action = favorite ? "取消收藏" : "收藏";
+    button.classList.toggle("is-favorite", favorite);
+    button.querySelector(".favorite-glyph").textContent = favorite ? "★" : "☆";
+    button.setAttribute("aria-pressed", String(favorite));
+    button.setAttribute("aria-label", `${action} ${recording.name}`);
+    button.title = `${action} ${recording.name}`;
+}
+
+async function toggleFavorite(recording, button) {
+    const favorite = !recording.favorite;
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+
+    try {
+        const data = await requestJson("/tools/game-recording-review/api/recording/favorite", {
+            method: "PATCH",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                scan_id: reviewState.scanId,
+                path: recording.path,
+                favorite,
+            }),
+        });
+        recording.favorite = data.favorite;
+        recording.favorited_at = data.favorited_at;
+        updateFavoriteButton(button, recording);
+        showToast(data.favorite ? "已收藏录屏" : "已取消收藏");
+    } catch (error) {
+        showStatus(error.message);
+    } finally {
+        button.disabled = false;
+        button.removeAttribute("aria-busy");
+    }
 }
 
 function renderEmptyDirectories() {

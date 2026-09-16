@@ -1,6 +1,10 @@
+import json
+import logging
 import os
 import secrets
+import tempfile
 from collections import OrderedDict
+from datetime import datetime, timezone
 from threading import Lock
 
 from flask import Blueprint, jsonify, render_template, request, send_from_directory
@@ -16,9 +20,13 @@ VIDEO_EXTENSIONS = {".mp4"}
 COVER_EXTENSIONS = (".jpeg", ".jpg", ".png", ".webp")
 MEDIA_EXTENSIONS = VIDEO_EXTENSIONS | set(COVER_EXTENSIONS)
 MAX_SCAN_SESSIONS = 32
+FAVORITES_FILENAME = ".game-recording-review.json"
+FAVORITES_VERSION = 1
 
 _scan_roots = OrderedDict()
 _scan_roots_lock = Lock()
+_favorites_lock = Lock()
+logger = logging.getLogger(__name__)
 
 
 def validate_root(root_path):
@@ -45,6 +53,83 @@ def _directory_entries(path, errors):
         return None
 
 
+def _favorites_path(root_path):
+    return os.path.join(root_path, FAVORITES_FILENAME)
+
+
+def _favorite_key(relative_path):
+    return relative_path.replace(os.sep, "/")
+
+
+def _read_favorites_unlocked(root_path):
+    metadata_path = _favorites_path(root_path)
+    if os.path.islink(metadata_path):
+        raise ValueError("收藏数据文件不能是符号链接")
+
+    try:
+        with open(metadata_path, encoding="utf-8") as metadata_file:
+            payload = json.load(metadata_file)
+    except FileNotFoundError:
+        return {}
+    except json.JSONDecodeError as error:
+        raise ValueError("收藏数据格式无效") from error
+
+    if not isinstance(payload, dict) or payload.get("version") != FAVORITES_VERSION:
+        raise ValueError("收藏数据版本无效")
+
+    favorites = payload.get("favorites")
+    if not isinstance(favorites, dict):
+        raise ValueError("收藏数据格式无效")
+
+    for relative_path, metadata in favorites.items():
+        if not isinstance(relative_path, str) or not isinstance(metadata, dict):
+            raise ValueError("收藏数据格式无效")
+        favorited_at = metadata.get("favorited_at")
+        if not isinstance(favorited_at, str) or not favorited_at:
+            raise ValueError("收藏数据格式无效")
+
+    return favorites
+
+
+def _read_favorites(root_path):
+    with _favorites_lock:
+        return _read_favorites_unlocked(root_path)
+
+
+def _write_favorites_unlocked(root_path, favorites):
+    metadata_path = _favorites_path(root_path)
+    temporary_path = None
+    file_descriptor = None
+    try:
+        file_descriptor, temporary_path = tempfile.mkstemp(
+            dir=root_path,
+            prefix=f"{FAVORITES_FILENAME}.",
+            suffix=".tmp",
+        )
+        with os.fdopen(file_descriptor, "w", encoding="utf-8") as metadata_file:
+            file_descriptor = None
+            json.dump(
+                {"version": FAVORITES_VERSION, "favorites": favorites},
+                metadata_file,
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+            metadata_file.write("\n")
+            metadata_file.flush()
+            os.fsync(metadata_file.fileno())
+        os.replace(temporary_path, metadata_path)
+        temporary_path = None
+    finally:
+        if file_descriptor is not None:
+            os.close(file_descriptor)
+        if temporary_path is not None:
+            try:
+                os.remove(temporary_path)
+            except FileNotFoundError:
+                pass
+
+
 def scan_recordings(root_path):
     """Scan root/game_id/random_directory without following symbolic links."""
     root_path, validation_error = validate_root(root_path)
@@ -55,6 +140,12 @@ def scan_recordings(root_path):
     games = []
     empty_directories = []
     directory_count = 0
+
+    try:
+        favorites = _read_favorites(root_path)
+    except (OSError, ValueError) as error:
+        _record_error(errors, _favorites_path(root_path), error)
+        favorites = {}
 
     for game_entry in _directory_entries(root_path, errors) or ():
         try:
@@ -123,19 +214,25 @@ def scan_recordings(root_path):
                     (matching_covers[extension] for extension in COVER_EXTENSIONS if extension in matching_covers),
                     None,
                 )
+                relative_path = os.path.join(directory_path, video_entry.name)
+                favorite_metadata = favorites.get(_favorite_key(relative_path))
                 recordings.append(
                     {
                         "game_id": game_entry.name,
                         "directory_id": random_entry.name,
                         "directory_path": directory_path,
                         "name": video_entry.name,
-                        "path": os.path.join(directory_path, video_entry.name),
+                        "path": relative_path,
                         "cover_path": os.path.join(directory_path, cover_name) if cover_name else None,
                         "size": stat.st_size,
                         "mtime": stat.st_mtime,
                         # Keep nanoseconds as text so browsers do not round the
                         # value beyond JavaScript's safe integer range.
                         "mtime_ns": str(stat.st_mtime_ns),
+                        "favorite": favorite_metadata is not None,
+                        "favorited_at": (
+                            favorite_metadata["favorited_at"] if favorite_metadata else None
+                        ),
                     }
                 )
 
@@ -204,6 +301,53 @@ def _resolve_relative_path(root_path, relative_path, expected_parts, extensions=
     return resolved_path, normalized_relative_path
 
 
+def set_recording_favorite(root_path, relative_path, favorite):
+    if not isinstance(favorite, bool):
+        raise ValueError("收藏状态无效")
+
+    video_path, normalized_relative_path = _resolve_relative_path(
+        root_path,
+        relative_path,
+        expected_parts={3},
+        extensions=VIDEO_EXTENSIONS,
+    )
+    if not os.path.isfile(video_path):
+        raise FileNotFoundError("录屏文件不存在，请重新扫描")
+
+    favorite_key = _favorite_key(normalized_relative_path)
+    with _favorites_lock:
+        favorites = _read_favorites_unlocked(root_path)
+        metadata = favorites.get(favorite_key)
+
+        if favorite:
+            if metadata is None:
+                metadata = {
+                    "favorited_at": datetime.now(timezone.utc)
+                    .isoformat(timespec="seconds")
+                    .replace("+00:00", "Z")
+                }
+                favorites[favorite_key] = metadata
+                _write_favorites_unlocked(root_path, favorites)
+        elif metadata is not None:
+            favorites.pop(favorite_key)
+            metadata = None
+            _write_favorites_unlocked(root_path, favorites)
+
+    return {
+        "path": normalized_relative_path,
+        "favorite": favorite,
+        "favorited_at": metadata["favorited_at"] if metadata else None,
+    }
+
+
+def _remove_recording_favorite(root_path, normalized_relative_path):
+    favorite_key = _favorite_key(normalized_relative_path)
+    with _favorites_lock:
+        favorites = _read_favorites_unlocked(root_path)
+        if favorites.pop(favorite_key, None) is not None:
+            _write_favorites_unlocked(root_path, favorites)
+
+
 def delete_recording(root_path, relative_path, expected_size, expected_mtime_ns):
     video_path, normalized_relative_path = _resolve_relative_path(
         root_path,
@@ -237,6 +381,15 @@ def delete_recording(root_path, relative_path, expected_size, expected_mtime_ns)
         if is_regular_file and stem.lower() == video_stem and extension.lower() in COVER_EXTENSIONS:
             os.remove(entry.path)
             deleted.append(os.path.join(os.path.dirname(normalized_relative_path), entry.name))
+
+    try:
+        _remove_recording_favorite(root_path, normalized_relative_path)
+    except (OSError, ValueError) as error:
+        logger.warning(
+            "Unable to remove favorite metadata for %s: %s",
+            normalized_relative_path,
+            error,
+        )
 
     return deleted
 
@@ -359,6 +512,29 @@ def api_delete_recording():
         return _json_error(error.strerror or str(error), 409)
 
     return jsonify({"success": True, "deleted": deleted})
+
+
+@game_recording_review_bp.route("/api/recording/favorite", methods=["PATCH"])
+def api_set_recording_favorite():
+    data = request.get_json(silent=True) or {}
+    root_path = _get_scan_root(data.get("scan_id"))
+    if not root_path:
+        return _json_error("扫描已失效，请重新扫描", 404)
+
+    try:
+        result = set_recording_favorite(
+            root_path,
+            data.get("path"),
+            data.get("favorite"),
+        )
+    except ValueError as error:
+        return _json_error(str(error), 400)
+    except FileNotFoundError as error:
+        return _json_error(str(error), 404)
+    except OSError as error:
+        return _json_error(error.strerror or str(error), 409)
+
+    return jsonify({"success": True, **result})
 
 
 @game_recording_review_bp.route("/api/empty-directories", methods=["DELETE"])
