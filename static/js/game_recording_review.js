@@ -10,10 +10,6 @@ const reviewState = {
     gameId: "",
 };
 
-const ROOTS_STORAGE_KEY = "gameRecordingReview.rootPaths";
-const LEGACY_ROOT_STORAGE_KEY = "gameRecordingReview.rootPath";
-const IGNORED_DIRECTORIES_STORAGE_KEY = "gameRecordingReview.ignoredDirectories";
-
 const elements = {
     rootBadge: document.getElementById("root-badge"),
     refreshButton: document.getElementById("refresh-button"),
@@ -102,7 +98,7 @@ elements.previewDialog.addEventListener("click", event => {
     if (event.target === elements.previewDialog) closePreview();
 });
 
-initializeRoots();
+initializeSettings();
 
 async function requestJson(url, options) {
     const response = await fetch(url, options);
@@ -137,6 +133,10 @@ async function scanRoots(paths, options = {}) {
             body: JSON.stringify({paths, ignored_directories: ignoredDirectories}),
         });
 
+        if (persist) {
+            await saveSettings(data.roots, data.ignored_directories);
+        }
+
         reviewState.scanId = data.scan_id;
         reviewState.roots = data.roots;
         reviewState.games = data.games;
@@ -151,7 +151,6 @@ async function scanRoots(paths, options = {}) {
         updateGameFilter();
         renderAll();
 
-        if (persist) saveSettings(data.roots, data.ignored_directories);
         if (elements.settingsDialog.open) elements.settingsDialog.close();
 
         if (data.errors.length) {
@@ -180,31 +179,36 @@ function setScanning(scanning) {
     elements.saveSettingsButton.textContent = scanning ? "正在扫描..." : "保存并扫描";
 }
 
-function initializeRoots() {
-    const savedRoots = loadRoots();
-    const savedIgnoredDirectories = migrateIgnoredDirectories(
-        savedRoots,
-        loadIgnoredDirectories(),
-    );
-    elements.settingsIgnoredDirectories.value = savedIgnoredDirectories.join("\n");
-    if (!savedRoots.length) {
+async function initializeSettings() {
+    let settings;
+    try {
+        settings = await requestJson("/tools/game-recording-review/api/settings");
+    } catch (error) {
+        elements.setupEmpty.hidden = false;
+        elements.content.hidden = true;
+        elements.rootBadge.textContent = "设置加载失败";
+        showStatus(error.message);
+        return;
+    }
+
+    elements.settingsRootPaths.value = settings.roots.join("\n");
+    elements.settingsIgnoredDirectories.value = settings.ignored_directories.join("\n");
+    if (!settings.roots.length) {
         elements.setupEmpty.hidden = false;
         return;
     }
 
-    elements.settingsRootPaths.value = savedRoots.join("\n");
-    updateRootBadge(savedRoots);
-    scanRoots(savedRoots, {ignoredDirectories: savedIgnoredDirectories});
+    updateRootBadge(settings.roots);
+    await scanRoots(settings.roots, {
+        ignoredDirectories: settings.ignored_directories,
+    });
 }
 
 function openSettings() {
-    const roots = reviewState.roots.length ? reviewState.roots : loadRoots();
-    elements.settingsRootPaths.value = roots.join("\n");
-    elements.settingsIgnoredDirectories.value = (
-        reviewState.roots.length
-            ? reviewState.ignoredDirectories
-            : migrateIgnoredDirectories(roots, loadIgnoredDirectories())
-    ).join("\n");
+    if (reviewState.roots.length) {
+        elements.settingsRootPaths.value = reviewState.roots.join("\n");
+        elements.settingsIgnoredDirectories.value = reviewState.ignoredDirectories.join("\n");
+    }
     hideSettingsError();
     elements.settingsDialog.showModal();
     elements.settingsRootPaths.focus();
@@ -225,54 +229,15 @@ function hideSettingsError() {
     elements.settingsError.textContent = "";
 }
 
-function loadRoots() {
-    try {
-        const roots = JSON.parse(localStorage.getItem(ROOTS_STORAGE_KEY) || "[]");
-        if (Array.isArray(roots) && roots.some(root => typeof root === "string" && root.trim())) {
-            return roots.filter(root => typeof root === "string" && root.trim());
-        }
-        const legacyRoot = localStorage.getItem(LEGACY_ROOT_STORAGE_KEY);
-        return legacyRoot ? [legacyRoot] : [];
-    } catch (error) {
-        return [];
-    }
-}
-
-function loadIgnoredDirectories() {
-    try {
-        const directories = JSON.parse(
-            localStorage.getItem(IGNORED_DIRECTORIES_STORAGE_KEY) || "[]",
-        );
-        return Array.isArray(directories)
-            ? directories.filter(directory => typeof directory === "string")
-            : [];
-    } catch (error) {
-        return [];
-    }
-}
-
 function parsePathList(value) {
     return [...new Set(value.split(/\r?\n/).map(path => path.trim()).filter(Boolean))];
 }
 
-function saveSettings(paths, ignoredDirectories) {
-    try {
-        localStorage.setItem(ROOTS_STORAGE_KEY, JSON.stringify(paths));
-        localStorage.removeItem(LEGACY_ROOT_STORAGE_KEY);
-        localStorage.setItem(
-            IGNORED_DIRECTORIES_STORAGE_KEY,
-            JSON.stringify(ignoredDirectories),
-        );
-    } catch (error) {
-        showStatus("目录已载入，但浏览器无法保存设置", "warning");
-    }
-}
-
-function migrateIgnoredDirectories(roots, ignoredDirectories) {
-    if (roots.length !== 1) return ignoredDirectories;
-    return ignoredDirectories.map(directory => {
-        if (directory.startsWith("/") || /^[A-Za-z]:[\\/]/.test(directory)) return directory;
-        return `${roots[0].replace(/[\\/]+$/, "")}/${directory.replace(/^[\\/]+/, "")}`;
+async function saveSettings(paths, ignoredDirectories) {
+    return requestJson("/tools/game-recording-review/api/settings", {
+        method: "PUT",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({roots: paths, ignored_directories: ignoredDirectories}),
     });
 }
 

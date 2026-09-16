@@ -15,6 +15,10 @@
 或 `.webp` 封面。同一游戏 ID 会跨根目录汇总，可按游戏 ID 筛选。
 跳过扫描目录需填写位于任一游戏根目录内的绝对路径。
 
+录屏审阅设置保存在容器内的 `/config/game-recording-review.json`，不依赖浏览器存储。
+部署时请将持久化目录映射到 `/config`。如需修改容器内配置目录，可设置
+`GAME_RECORDING_REVIEW_CONFIG_DIR` 环境变量。
+
 ---
 
 ## 快速启动

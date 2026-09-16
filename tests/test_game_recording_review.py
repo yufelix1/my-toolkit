@@ -2,17 +2,22 @@ import json
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from flask import Flask
 
 from tools.game_recording_review.routes import (
     FAVORITES_FILENAME,
+    SETTINGS_CONFIG_DIR_ENV,
+    SETTINGS_FILENAME,
     delete_empty_recording_directories,
     delete_recording,
     game_recording_review_bp,
     normalize_ignored_directories,
+    read_settings,
     scan_recordings,
     set_recording_favorite,
+    write_settings,
 )
 
 
@@ -38,6 +43,84 @@ class GameRecordingReviewTestCase(unittest.TestCase):
         with open(os.path.join(orphan_dir, "orphan.jpeg"), "wb") as file:
             file.write(b"orphan")
         return video_path, cover_path, second_video, empty_dir, orphan_dir
+
+    def test_settings_persist_in_config_directory_json(self):
+        with tempfile.TemporaryDirectory() as config_directory, tempfile.TemporaryDirectory() as root:
+            ignored_directory = os.path.join(root, "ignored-game")
+            os.mkdir(ignored_directory)
+
+            with patch.dict(
+                os.environ,
+                {SETTINGS_CONFIG_DIR_ENV: config_directory},
+            ):
+                saved = write_settings([root], [ignored_directory])
+                loaded = read_settings()
+
+            settings_path = os.path.join(config_directory, SETTINGS_FILENAME)
+            self.assertTrue(os.path.isfile(settings_path))
+            self.assertEqual(saved, loaded)
+            self.assertEqual(saved["roots"], [os.path.realpath(root)])
+            self.assertEqual(
+                saved["ignored_directories"],
+                [os.path.realpath(ignored_directory)],
+            )
+            with open(settings_path, encoding="utf-8") as settings_file:
+                payload = json.load(settings_file)
+            self.assertEqual(payload["version"], 1)
+
+    def test_settings_api_reads_and_writes_config_file(self):
+        with tempfile.TemporaryDirectory() as config_directory, tempfile.TemporaryDirectory() as root:
+            app = Flask(__name__)
+            app.register_blueprint(
+                game_recording_review_bp,
+                url_prefix="/tools/game-recording-review",
+            )
+            client = app.test_client()
+
+            with patch.dict(
+                os.environ,
+                {SETTINGS_CONFIG_DIR_ENV: config_directory},
+            ):
+                empty_response = client.get(
+                    "/tools/game-recording-review/api/settings"
+                )
+                save_response = client.put(
+                    "/tools/game-recording-review/api/settings",
+                    json={"roots": [root], "ignored_directories": []},
+                )
+                load_response = client.get(
+                    "/tools/game-recording-review/api/settings"
+                )
+
+            self.assertEqual(empty_response.status_code, 200)
+            self.assertEqual(empty_response.get_json()["roots"], [])
+            self.assertEqual(save_response.status_code, 200)
+            self.assertEqual(load_response.status_code, 200)
+            self.assertEqual(
+                load_response.get_json()["roots"],
+                [os.path.realpath(root)],
+            )
+
+    def test_settings_api_rejects_malformed_config_json(self):
+        with tempfile.TemporaryDirectory() as config_directory:
+            settings_path = os.path.join(config_directory, SETTINGS_FILENAME)
+            with open(settings_path, "w", encoding="utf-8") as settings_file:
+                settings_file.write("not json")
+
+            app = Flask(__name__)
+            app.register_blueprint(
+                game_recording_review_bp,
+                url_prefix="/tools/game-recording-review",
+            )
+            client = app.test_client()
+            with patch.dict(
+                os.environ,
+                {SETTINGS_CONFIG_DIR_ENV: config_directory},
+            ):
+                response = client.get("/tools/game-recording-review/api/settings")
+
+            self.assertEqual(response.status_code, 500)
+            self.assertIn("JSON", response.get_json()["message"])
 
     def test_scan_groups_multiple_videos_and_finds_only_truly_empty_directories(self):
         with tempfile.TemporaryDirectory() as root:

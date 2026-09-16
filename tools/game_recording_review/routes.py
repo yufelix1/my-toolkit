@@ -22,10 +22,15 @@ MEDIA_EXTENSIONS = VIDEO_EXTENSIONS | set(COVER_EXTENSIONS)
 MAX_SCAN_SESSIONS = 32
 FAVORITES_FILENAME = ".game-recording-review.json"
 FAVORITES_VERSION = 1
+SETTINGS_FILENAME = "game-recording-review.json"
+SETTINGS_VERSION = 1
+SETTINGS_CONFIG_DIR_ENV = "GAME_RECORDING_REVIEW_CONFIG_DIR"
+DEFAULT_SETTINGS_CONFIG_DIR = "/config"
 
 _scan_roots = OrderedDict()
 _scan_roots_lock = Lock()
 _favorites_lock = Lock()
+_settings_lock = Lock()
 logger = logging.getLogger(__name__)
 
 
@@ -52,6 +57,112 @@ def validate_roots(root_paths):
             normalized_roots.append(normalized_root)
 
     return normalized_roots, None
+
+
+def _settings_path():
+    config_directory = os.environ.get(
+        SETTINGS_CONFIG_DIR_ENV,
+        DEFAULT_SETTINGS_CONFIG_DIR,
+    ).strip()
+    if not config_directory:
+        config_directory = DEFAULT_SETTINGS_CONFIG_DIR
+    config_directory = os.path.realpath(os.path.expanduser(config_directory))
+    return os.path.join(config_directory, SETTINGS_FILENAME)
+
+
+def _parse_settings_payload(payload):
+    if not isinstance(payload, dict) or payload.get("version") != SETTINGS_VERSION:
+        raise ValueError("设置文件版本无效")
+
+    roots = payload.get("roots")
+    ignored_directories = payload.get("ignored_directories")
+    if not isinstance(roots, list) or not isinstance(ignored_directories, list):
+        raise ValueError("设置文件格式无效")
+    if any(not isinstance(path, str) or not path.strip() for path in roots):
+        raise ValueError("设置文件格式无效")
+    if any(
+        not isinstance(path, str) or not path.strip()
+        for path in ignored_directories
+    ):
+        raise ValueError("设置文件格式无效")
+
+    return {
+        "roots": roots,
+        "ignored_directories": ignored_directories,
+    }
+
+
+def read_settings():
+    settings_path = _settings_path()
+    with _settings_lock:
+        if os.path.islink(settings_path):
+            raise ValueError("设置文件不能是符号链接")
+        try:
+            with open(settings_path, encoding="utf-8") as settings_file:
+                payload = json.load(settings_file)
+        except FileNotFoundError:
+            return {"roots": [], "ignored_directories": []}
+        except json.JSONDecodeError as error:
+            raise ValueError("设置文件 JSON 格式无效") from error
+
+    return _parse_settings_payload(payload)
+
+
+def write_settings(root_paths, ignored_directories=None):
+    normalized_roots, validation_error = validate_roots(root_paths)
+    if validation_error:
+        raise ValueError(validation_error)
+    normalized_ignored_directories = normalize_ignored_directories(
+        normalized_roots,
+        ignored_directories,
+    )
+    payload = {
+        "version": SETTINGS_VERSION,
+        "roots": normalized_roots,
+        "ignored_directories": normalized_ignored_directories,
+    }
+
+    settings_path = _settings_path()
+    config_directory = os.path.dirname(settings_path)
+    temporary_path = None
+    file_descriptor = None
+    with _settings_lock:
+        os.makedirs(config_directory, exist_ok=True)
+        if os.path.islink(settings_path):
+            raise ValueError("设置文件不能是符号链接")
+        try:
+            file_descriptor, temporary_path = tempfile.mkstemp(
+                dir=config_directory,
+                prefix=f"{SETTINGS_FILENAME}.",
+                suffix=".tmp",
+            )
+            with os.fdopen(file_descriptor, "w", encoding="utf-8") as settings_file:
+                file_descriptor = None
+                json.dump(
+                    payload,
+                    settings_file,
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                )
+                settings_file.write("\n")
+                settings_file.flush()
+                os.fsync(settings_file.fileno())
+            os.replace(temporary_path, settings_path)
+            temporary_path = None
+        finally:
+            if file_descriptor is not None:
+                os.close(file_descriptor)
+            if temporary_path is not None:
+                try:
+                    os.remove(temporary_path)
+                except FileNotFoundError:
+                    pass
+
+    return {
+        "roots": normalized_roots,
+        "ignored_directories": normalized_ignored_directories,
+    }
 
 
 def _record_error(errors, path, error):
@@ -616,6 +727,32 @@ def _json_error(message, status_code):
 @game_recording_review_bp.route("/")
 def index():
     return render_template("game_recording_review/index.html")
+
+
+@game_recording_review_bp.route("/api/settings", methods=["GET"])
+def api_get_settings():
+    try:
+        settings = read_settings()
+    except ValueError as error:
+        return _json_error(str(error), 500)
+    except OSError as error:
+        return _json_error(error.strerror or str(error), 500)
+    return jsonify({"success": True, **settings})
+
+
+@game_recording_review_bp.route("/api/settings", methods=["PUT"])
+def api_save_settings():
+    data = request.get_json(silent=True) or {}
+    try:
+        settings = write_settings(
+            data.get("roots"),
+            data.get("ignored_directories"),
+        )
+    except ValueError as error:
+        return _json_error(str(error), 400)
+    except OSError as error:
+        return _json_error(error.strerror or str(error), 500)
+    return jsonify({"success": True, **settings})
 
 
 @game_recording_review_bp.route("/api/scan", methods=["POST"])
