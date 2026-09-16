@@ -285,11 +285,9 @@ function createRecordingCard(recording) {
     } else {
         const placeholder = document.createElement("span");
         placeholder.className = "cover-placeholder";
-        const icon = document.createElement("strong");
-        icon.textContent = "▶";
         const label = document.createElement("span");
         label.textContent = "无封面";
-        placeholder.append(icon, label);
+        placeholder.appendChild(label);
         coverButton.appendChild(placeholder);
     }
 
@@ -317,13 +315,26 @@ function createRecordingCard(recording) {
     directory.title = recording.directory_path;
     directory.textContent = recording.directory_id;
 
-    const actions = document.createElement("div");
-    actions.className = "recording-actions";
-    const previewButton = commandButton("预览", "secondary-button", () => openPreview(recording));
-    const deleteButton = commandButton("删除", "delete-button", () => confirmDeleteRecording(recording));
-    actions.append(previewButton, deleteButton);
-    info.append(name, meta, directory, actions);
-    article.append(coverButton, info);
+    info.append(name, meta, directory);
+    coverButton.appendChild(info);
+
+    const deleteButton = document.createElement("button");
+    deleteButton.className = "recording-delete-button";
+    deleteButton.type = "button";
+    deleteButton.title = `删除 ${recording.name}`;
+    deleteButton.setAttribute("aria-label", `删除 ${recording.name}`);
+    deleteButton.innerHTML = `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 6h18"></path>
+            <path d="M8 6V4h8v2"></path>
+            <path d="M19 6l-1 14H6L5 6"></path>
+            <path d="M10 11v5"></path>
+            <path d="M14 11v5"></path>
+        </svg>
+    `;
+    deleteButton.addEventListener("click", () => confirmDeleteRecording(recording));
+
+    article.append(coverButton, deleteButton);
     return article;
 }
 

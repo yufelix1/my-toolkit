@@ -1,65 +1,124 @@
 {% extends "base.html" %}
 
-{% block title %}文件整理工具{% endblock %}
+{% block title %}文件整理 | 我的工具集{% endblock %}
+{% block body_class %}tool-page{% endblock %}
 
 {% block content %}
-    <h1>📁 文件整理工具</h1>
-    <p class="subtitle">两层目录展平 → 时间戳或固定名称目录</p>
+<header class="tool-page-header">
+    <a class="back-text-link" href="/tools"><span aria-hidden="true">←</span> 全部工具</a>
+    <h1>文件整理</h1>
+    <p>把两层目录中的文件移动到统一目录，原始文件名保持不变。</p>
+</header>
 
-    <label>目标目录路径：</label>
-    <input type="text" id="path" placeholder="/path/to/your/folder" />
+<div class="tool-layout">
+    <section class="tool-panel" aria-labelledby="flatten-heading">
+        <div class="panel-heading">
+            <h2 id="flatten-heading">整理设置</h2>
+            <p>先确认目标路径，再选择输出目录的命名方式。</p>
+        </div>
 
-    <div class="option">
-        <label>
-            <input type="checkbox" id="delete_subdirs" />
-            删除移动后的子目录（默认不删除）
-        </label>
-    </div>
+        <form id="flatten-form" class="tool-form">
+            <div class="field-group">
+                <label for="path">目标目录路径</label>
+                <p class="field-help" id="path-help">工具会读取该目录下的两层子目录。</p>
+                <input type="text" id="path" placeholder="/path/to/your/folder" aria-describedby="path-help" autocomplete="off">
+            </div>
 
-    <div class="option">
-        <label>
-            <input type="checkbox" id="use_custom_name" onchange="toggleCustomName()" />
-            使用固定目录名称（默认使用时间戳）
-        </label>
-        <input type="text" id="custom_name" placeholder="Season 1" value="Season 1" style="display: none;" />
-    </div>
+            <fieldset class="option-group">
+                <legend>整理选项</legend>
+                <label class="choice-row" for="delete_subdirs">
+                    <span>
+                        <strong>删除已清空的子目录</strong>
+                        <small>仅在文件移动成功后执行</small>
+                    </span>
+                    <input type="checkbox" id="delete_subdirs">
+                </label>
+                <label class="choice-row" for="use_custom_name">
+                    <span>
+                        <strong>使用固定目录名称</strong>
+                        <small>关闭时将使用当前时间戳</small>
+                    </span>
+                    <input type="checkbox" id="use_custom_name">
+                </label>
+            </fieldset>
 
-    <button onclick="startFlatten()">开始整理文件</button>
+            <div id="custom-name-field" class="field-group" hidden>
+                <label for="custom_name">固定目录名称</label>
+                <input type="text" id="custom_name" placeholder="例如 Season 1" value="Season 1">
+            </div>
 
-    <div id="result" class="result"></div>
+            <div class="form-actions">
+                <button id="flatten-button" type="submit">开始整理</button>
+            </div>
+        </form>
 
-    <script>
-        function toggleCustomName() {
-            const cb = document.getElementById('use_custom_name');
-            const input = document.getElementById('custom_name');
-            input.style.display = cb.checked ? 'block' : 'none';
+        <div id="result" class="result-message" role="status" aria-live="polite" hidden></div>
+    </section>
+
+    <aside class="tool-aside" aria-labelledby="flatten-note-heading">
+        <h2 id="flatten-note-heading">执行前检查</h2>
+        <ol class="check-list">
+            <li>确认目录路径位于当前运行环境可访问的位置。</li>
+            <li>固定名称适合连续归档到同一个目标目录。</li>
+            <li>删除子目录前，建议先完成一次不删除的整理。</li>
+        </ol>
+    </aside>
+</div>
+
+<script>
+    const flattenForm = document.getElementById("flatten-form");
+    const customNameToggle = document.getElementById("use_custom_name");
+    const customNameField = document.getElementById("custom-name-field");
+    const flattenButton = document.getElementById("flatten-button");
+    const result = document.getElementById("result");
+
+    customNameToggle.addEventListener("change", () => {
+        customNameField.hidden = !customNameToggle.checked;
+        if (customNameToggle.checked) document.getElementById("custom_name").focus();
+    });
+
+    flattenForm.addEventListener("submit", async event => {
+        event.preventDefault();
+        const path = document.getElementById("path").value.trim();
+        if (!path) {
+            showResult("请输入目标目录路径。", "error");
+            document.getElementById("path").focus();
+            return;
         }
 
-        async function startFlatten() {
-            const path = document.getElementById('path').value.trim();
-            if (!path) return alert("请输入目录路径");
+        setBusy(true);
+        showResult("正在整理文件，请保持页面开启。", "loading");
 
-            const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = '正在处理...';
-
-            try {
-                const res = await fetch('/tools/file-flatten/api', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        path: path,
-                        delete_subdirs: document.getElementById('delete_subdirs').checked,
-                        custom_name: document.getElementById('use_custom_name').checked ? 
-                                    document.getElementById('custom_name').value.trim() : null
-                    })
-                });
-                const data = await res.json();
-                resultDiv.style.color = data.success ? 'green' : 'red';
-                resultDiv.innerHTML = data.message;
-            } catch (e) {
-                resultDiv.style.color = 'red';
-                resultDiv.innerHTML = '请求失败';
-            }
+        try {
+            const response = await fetch("/tools/file-flatten/api", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    path,
+                    delete_subdirs: document.getElementById("delete_subdirs").checked,
+                    custom_name: customNameToggle.checked
+                        ? document.getElementById("custom_name").value.trim()
+                        : null,
+                }),
+            });
+            const data = await response.json().catch(() => ({}));
+            showResult(data.message || "请求未返回可读结果。", response.ok && data.success ? "success" : "error");
+        } catch (error) {
+            showResult("请求失败，请检查服务状态后重试。", "error");
+        } finally {
+            setBusy(false);
         }
-    </script>
+    });
+
+    function setBusy(busy) {
+        flattenButton.disabled = busy;
+        flattenButton.textContent = busy ? "正在整理" : "开始整理";
+    }
+
+    function showResult(message, state) {
+        result.hidden = false;
+        result.dataset.state = state;
+        result.textContent = message;
+    }
+</script>
 {% endblock %}

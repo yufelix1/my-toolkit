@@ -1,177 +1,225 @@
 {% extends "base.html" %}
 
-{% block title %}Torrent 转 Magnet{% endblock %}
+{% block title %}Torrent 转 Magnet | 我的工具集{% endblock %}
+{% block body_class %}tool-page{% endblock %}
 
 {% block content %}
-    <h1>🔄 Torrent 转 Magnet</h1>
-    <p class="subtitle">仅提取 BTIH 磁力链接 · 支持批量上传与 RSS 订阅</p>
+<header class="tool-page-header">
+    <a class="back-text-link" href="/tools"><span aria-hidden="true">←</span> 全部工具</a>
+    <h1>Torrent 转 Magnet</h1>
+    <p>从本地种子文件或 RSS 中提取 BTIH 磁力链接。</p>
+</header>
 
-    <!-- 输入方式选择 -->
-    <div class="option">
-        <label><strong>选择输入方式：</strong></label>
-        <select id="inputMode" onchange="switchInputMode()" style="padding: 10px; font-size: 16px; width: 100%; max-width: 400px;">
-            <option value="upload">上传 .torrent 文件</option>
-            <option value="rss">RSS 自动下载种子</option>
-        </select>
-    </div>
-
-    <!-- 上传方式 -->
-    <section id="uploadSection">
-        <h2>1. 上传 .torrent 文件</h2>
-        <input type="file" id="torrentFiles" multiple accept=".torrent" />
-        <button onclick="uploadFiles()">上传文件</button>
-    </section>
-
-    <!-- RSS 方式 -->
-    <section id="rssSection" style="display: none;">
-        <h2>1. RSS 自动下载种子</h2>
-        <label>RSS 地址：</label>
-        <input type="text" id="rss_url" placeholder="https://mikanani.me/RSS/Bangumi?bangumiId=2187&subgroupid=203" />
-
-        <div class="option">
-            <label>过滤关键字（用逗号分隔，匹配则跳过）：</label>
-            <input type="text" id="filters" placeholder="BIG5,720p,繁体" />
+<div class="torrent-workflow">
+    <section class="tool-panel" aria-labelledby="source-heading">
+        <div class="panel-heading">
+            <h2 id="source-heading">选择种子来源</h2>
+            <p>两种来源共用同一个待转换列表。</p>
         </div>
 
-        <button onclick="downloadFromRSS()">下载 RSS 中的种子</button>
+        <div class="mode-switch" role="tablist" aria-label="种子来源">
+            <button class="mode-button active" type="button" role="tab" aria-selected="true" data-mode="upload">本地文件</button>
+            <button class="mode-button" type="button" role="tab" aria-selected="false" data-mode="rss">RSS 地址</button>
+        </div>
+
+        <div id="uploadSection" class="source-panel" role="tabpanel">
+            <div class="field-group">
+                <label for="torrentFiles">Torrent 文件</label>
+                <p class="field-help" id="torrent-help">支持一次选择多个 .torrent 文件。</p>
+                <label class="file-picker" for="torrentFiles">
+                    <span class="file-picker-copy">
+                        <strong>选择种子文件</strong>
+                        <small id="file-selection">尚未选择文件</small>
+                    </span>
+                    <span class="file-picker-action">浏览文件</span>
+                </label>
+                <input class="sr-only-file" type="file" id="torrentFiles" multiple accept=".torrent" aria-describedby="torrent-help">
+            </div>
+            <button id="upload-button" type="button">加入待转换列表</button>
+        </div>
+
+        <div id="rssSection" class="source-panel" role="tabpanel" hidden>
+            <div class="field-group">
+                <label for="rss_url">RSS 地址</label>
+                <input type="url" id="rss_url" placeholder="https://example.com/feed.xml" autocomplete="url">
+            </div>
+            <div class="field-group">
+                <label for="filters">跳过包含以下关键字的项目</label>
+                <p class="field-help" id="filter-help">多个关键字使用英文逗号分隔。</p>
+                <input type="text" id="filters" placeholder="BIG5, 720p" aria-describedby="filter-help">
+            </div>
+            <button id="rss-button" type="button">读取 RSS</button>
+        </div>
     </section>
 
-    <section>
-        <h2>2. 执行转换</h2>
-        <button onclick="convertToMagnet()">一键转换所有 torrent → 磁力链接</button>
+    <section class="convert-panel" aria-labelledby="convert-heading">
+        <div>
+            <h2 id="convert-heading">生成磁力链接</h2>
+            <p>来源准备完成后，转换当前列表中的全部种子。</p>
+        </div>
+        <button id="convert-button" type="button">开始转换</button>
     </section>
 
-    <div id="content-section" style="display: none; margin-top: 20px;">
-        <h3>✅ 转换完成 - 磁力链接列表</h3>
-        <button onclick="copyToClipboard()" class="btn" style="background:#28a745;">复制全部磁力链接</button>
-        <pre id="magnet-content"></pre>
-    </div>
+    <div id="result" class="result-message workflow-status" role="status" aria-live="polite" hidden></div>
 
-    <div id="result" class="result"></div>
+    <section id="content-section" class="output-panel" aria-labelledby="output-heading" hidden>
+        <div class="output-heading">
+            <div>
+                <h2 id="output-heading">磁力链接</h2>
+                <p>结果已按行整理，可直接复制到下载工具。</p>
+            </div>
+            <button id="copy-button" class="secondary-action" type="button">复制全部</button>
+        </div>
+        <pre id="magnet-content" tabindex="0"></pre>
+    </section>
+</div>
 
-    <script>
-        function switchInputMode() {
-            const mode = document.getElementById('inputMode').value;
-            document.getElementById('uploadSection').style.display = mode === 'upload' ? 'block' : 'none';
-            document.getElementById('rssSection').style.display = mode === 'rss' ? 'block' : 'none';
+<script>
+    const modeButtons = document.querySelectorAll(".mode-button");
+    const uploadSection = document.getElementById("uploadSection");
+    const rssSection = document.getElementById("rssSection");
+    const torrentFiles = document.getElementById("torrentFiles");
+    const uploadButton = document.getElementById("upload-button");
+    const rssButton = document.getElementById("rss-button");
+    const convertButton = document.getElementById("convert-button");
+    const copyButton = document.getElementById("copy-button");
+    const result = document.getElementById("result");
+
+    modeButtons.forEach(button => {
+        button.addEventListener("click", () => switchInputMode(button.dataset.mode));
+    });
+    torrentFiles.addEventListener("change", updateFileSelection);
+    uploadButton.addEventListener("click", uploadFiles);
+    rssButton.addEventListener("click", downloadFromRSS);
+    convertButton.addEventListener("click", convertToMagnet);
+    copyButton.addEventListener("click", copyToClipboard);
+
+    function switchInputMode(mode) {
+        const uploadActive = mode === "upload";
+        uploadSection.hidden = !uploadActive;
+        rssSection.hidden = uploadActive;
+        modeButtons.forEach(button => {
+            const active = button.dataset.mode === mode;
+            button.classList.toggle("active", active);
+            button.setAttribute("aria-selected", String(active));
+        });
+    }
+
+    function updateFileSelection() {
+        const count = torrentFiles.files.length;
+        document.getElementById("file-selection").textContent = count
+            ? `已选择 ${count} 个文件`
+            : "尚未选择文件";
+    }
+
+    async function uploadFiles() {
+        if (torrentFiles.files.length === 0) {
+            showStatus("请选择至少一个 .torrent 文件。", "error");
+            torrentFiles.focus();
+            return;
         }
 
-        window.onload = function() {
-            switchInputMode();
-        };
+        const formData = new FormData();
+        for (const file of torrentFiles.files) formData.append("files", file);
+        setButtonBusy(uploadButton, true, "正在上传");
+        showStatus("正在上传种子文件。", "loading");
 
-        async function uploadFiles() {
-            const files = document.getElementById('torrentFiles').files;
-            if (files.length === 0) return alert("请选择 .torrent 文件");
+        try {
+            const response = await fetch("/tools/torrent-to-magnet/upload", {method: "POST", body: formData});
+            const data = await response.json().catch(() => ({}));
+            showStatus(data.message || data.error || "上传未返回可读结果。", response.ok && data.success ? "success" : "error");
+        } catch (error) {
+            showStatus("上传失败，请检查服务状态后重试。", "error");
+        } finally {
+            setButtonBusy(uploadButton, false, "加入待转换列表");
+        }
+    }
 
-            const formData = new FormData();
-            for (let file of files) {
-                formData.append('files', file);
-            }
-
-            const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = '正在上传...';
-
-            try {
-                const res = await fetch('/tools/torrent-to-magnet/upload', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await res.json();
-                resultDiv.style.color = data.success ? '#27ae60' : 'red';
-                resultDiv.innerHTML = data.message || data.error;
-            } catch (e) {
-                resultDiv.style.color = 'red';
-                resultDiv.innerHTML = '上传失败：' + e.message;
-            }
+    async function downloadFromRSS() {
+        const rssUrl = document.getElementById("rss_url").value.trim();
+        const filters = document.getElementById("filters").value.trim();
+        if (!rssUrl) {
+            showStatus("请输入 RSS 地址。", "error");
+            document.getElementById("rss_url").focus();
+            return;
         }
 
-        async function downloadFromRSS() {
-            const rss_url = document.getElementById('rss_url').value.trim();
-            const filters = document.getElementById('filters').value.trim();
-
-            if (!rss_url) return alert("请输入 RSS 地址");
-
-            const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = '正在从 RSS 下载种子...';
-
-            try {
-                const res = await fetch('/tools/torrent-to-magnet/rss', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ rss_url, filters })
-                });
-                const data = await res.json();
-                resultDiv.style.color = data.success ? '#27ae60' : 'red';
-                resultDiv.innerHTML = data.message;
-            } catch (e) {
-                resultDiv.style.color = 'red';
-                resultDiv.innerHTML = 'RSS 下载失败';
-            }
+        setButtonBusy(rssButton, true, "正在读取");
+        showStatus("正在读取 RSS 并下载种子。", "loading");
+        try {
+            const response = await fetch("/tools/torrent-to-magnet/rss", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({rss_url: rssUrl, filters}),
+            });
+            const data = await response.json().catch(() => ({}));
+            showStatus(data.message || data.error || "RSS 未返回可读结果。", response.ok && data.success ? "success" : "error");
+        } catch (error) {
+            showStatus("RSS 读取失败，请检查地址或服务状态。", "error");
+        } finally {
+            setButtonBusy(rssButton, false, "读取 RSS");
         }
+    }
 
-        async function convertToMagnet() {
-            const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = '正在转换...';
-
-            try {
-                const res = await fetch('/tools/torrent-to-magnet/convert', { method: 'POST' });
-                const data = await res.json();
-
-                if (data.status === "success") {
-                    resultDiv.innerHTML = `<span style="color:green">✅ 转换成功！共 ${data.count} 个磁力链接</span>`;
-
-                    // 显示最新磁力内容
-                    await loadLatestMagnetContent(data.file);
-                } else {
-                    resultDiv.innerHTML = '转换失败';
-                }
-            } catch (e) {
-                resultDiv.innerHTML = '请求失败：' + e.message;
-            }
+    async function convertToMagnet() {
+        setButtonBusy(convertButton, true, "正在转换");
+        showStatus("正在生成磁力链接。", "loading");
+        try {
+            const response = await fetch("/tools/torrent-to-magnet/convert", {method: "POST"});
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || data.status !== "success") throw new Error("转换失败");
+            await loadLatestMagnetContent(data.file);
+            showStatus(`转换完成，共生成 ${data.count} 个磁力链接。`, "success");
+        } catch (error) {
+            showStatus(error.message || "转换失败，请稍后重试。", "error");
+        } finally {
+            setButtonBusy(convertButton, false, "开始转换");
         }
+    }
 
-        async function loadLatestMagnetContent(filename) {
-            try {
-                const res = await fetch(`/tools/torrent-to-magnet/download/${filename}`);
-                const text = await res.text();
-                
-                document.getElementById('magnet-content').textContent = text;
-                document.getElementById('content-section').style.display = 'block';
-            } catch (err) {
-                console.error("读取文件失败", err);
-            }
-        }
+    async function loadLatestMagnetContent(filename) {
+        const response = await fetch(`/tools/torrent-to-magnet/download/${encodeURIComponent(filename)}`);
+        if (!response.ok) throw new Error("结果文件读取失败");
+        document.getElementById("magnet-content").textContent = await response.text();
+        document.getElementById("content-section").hidden = false;
+    }
 
-        function copyToClipboard() {
-            const content = document.getElementById('magnet-content').textContent.trim();
-            if (!content) return;
-
-            // 现代浏览器 Clipboard API
+    async function copyToClipboard() {
+        const content = document.getElementById("magnet-content").textContent.trim();
+        if (!content) return;
+        try {
             if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(content).then(() => {
-                }).catch(() => {
-                    fallbackCopy(content);
-                });
+                await navigator.clipboard.writeText(content);
             } else {
                 fallbackCopy(content);
             }
+            showStatus("磁力链接已复制到剪贴板。", "success");
+        } catch (error) {
+            showStatus("复制失败，请手动选择结果内容。", "error");
         }
+    }
 
-        // Fallback 复制方法（兼容性更好）
-        function fallbackCopy(text) {
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            textarea.style.position = 'fixed';
-            textarea.style.opacity = '0';
-            document.body.appendChild(textarea);
-            textarea.select();
-            try {
-                document.execCommand('copy');
-            } catch (err) {
-                alert("复制失败，请手动复制");
-            }
-            document.body.removeChild(textarea);
-        }
-    </script>
+    function fallbackCopy(text) {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        const copied = document.execCommand("copy");
+        textarea.remove();
+        if (!copied) throw new Error("复制失败");
+    }
+
+    function setButtonBusy(button, busy, label) {
+        button.disabled = busy;
+        button.textContent = label;
+    }
+
+    function showStatus(message, state) {
+        result.hidden = false;
+        result.dataset.state = state;
+        result.textContent = message;
+    }
+</script>
 {% endblock %}

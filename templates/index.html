@@ -1,31 +1,56 @@
 {% extends "base.html" %}
 
 {% block title %}我的工具集{% endblock %}
+{% block body_class %}home-page{% endblock %}
 
 {% block content %}
-    <h1>🛠️ 我的工具集</h1>
-    <p class="subtitle">个人常用工具合集 · 持续扩展中</p>
-
-    <div class="tools-grid">
-        <a href="/tools/file-flatten" style="text-decoration: none; color: inherit;">
-            <div class="tool-card">
-                <h3>📁 文件整理工具</h3>
-                <p>两层目录展平 → 时间戳或固定名称目录</p>
-            </div>
-        </a>
-
-        <a href="/tools/game-recording-review" style="text-decoration: none; color: inherit;">
-            <div class="tool-card">
-                <h3>游戏录屏审阅</h3>
-                <p>按游戏浏览、预览和清理录屏</p>
-            </div>
-        </a>
-
-        <a href="/tools/torrent-to-magnet" style="text-decoration: none; color: inherit;">
-            <div class="tool-card">
-                <h3>🔄 Torrent 转 Magnet</h3>
-                <p>种子文件转磁力链接</p>
-            </div>
-        </a>
+<section class="home-intro" aria-labelledby="page-title">
+    <div>
+        <p class="section-label">个人工作台</p>
+        <h1 id="page-title">常用工具，集中处理</h1>
+        <p>整理文件、审阅录屏、转换种子。每个工具只保留完成任务所需的操作。</p>
     </div>
+    <dl class="tool-count" aria-label="工具数量">
+        <dt>可用工具</dt>
+        <dd>3</dd>
+    </dl>
+</section>
+
+<section class="tools-grid" aria-label="工具列表">
+    <a class="tool-card tool-card-featured" href="/tools/game-recording-review">
+        <div class="tool-card-topline">
+            <span class="tool-monogram" aria-hidden="true">GR</span>
+            <span class="tool-category">媒体管理</span>
+        </div>
+        <div class="tool-card-copy">
+            <h2>游戏录屏审阅</h2>
+            <p>按游戏浏览封面和录屏，快速预览内容并清理无效文件。</p>
+        </div>
+        <span class="tool-card-link">打开工具 <span aria-hidden="true">→</span></span>
+    </a>
+
+    <a class="tool-card" href="/tools/file-flatten">
+        <div class="tool-card-topline">
+            <span class="tool-monogram" aria-hidden="true">FF</span>
+            <span class="tool-category">文件管理</span>
+        </div>
+        <div class="tool-card-copy">
+            <h2>文件整理</h2>
+            <p>展平两层目录，并按时间戳或固定名称归档文件。</p>
+        </div>
+        <span class="tool-card-link">打开工具 <span aria-hidden="true">→</span></span>
+    </a>
+
+    <a class="tool-card" href="/tools/torrent-to-magnet">
+        <div class="tool-card-topline">
+            <span class="tool-monogram" aria-hidden="true">TM</span>
+            <span class="tool-category">链接转换</span>
+        </div>
+        <div class="tool-card-copy">
+            <h2>Torrent 转 Magnet</h2>
+            <p>批量上传种子或读取 RSS，并生成可复制的磁力链接。</p>
+        </div>
+        <span class="tool-card-link">打开工具 <span aria-hidden="true">→</span></span>
+    </a>
+</section>
 {% endblock %}
