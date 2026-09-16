@@ -6,22 +6,12 @@
     <meta name="theme-color" content="#eef3f0" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#0d1312" media="(prefers-color-scheme: dark)">
     <title>{% block title %}我的工具集{% endblock %}</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     {% block extra_head %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
     <a class="skip-link" href="#main-content">跳到主要内容</a>
-    <header class="site-header">
-        <div class="site-header-inner">
-            <a class="site-brand" href="/tools" aria-label="我的工具集首页">
-                <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-                <span>我的工具集</span>
-            </a>
-            <nav class="site-nav" aria-label="主导航">
-                <a href="/tools">全部工具</a>
-            </nav>
-        </div>
-    </header>
     <main id="main-content" class="container {% block container_class %}{% endblock %}">
         {% block content %}{% endblock %}
     </main>

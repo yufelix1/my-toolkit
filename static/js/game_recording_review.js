@@ -281,6 +281,7 @@ function createRecordingCard(recording) {
         image.src = mediaUrl(recording.cover_path);
         image.alt = `${recording.name} 封面`;
         image.loading = "lazy";
+        image.decoding = "async";
         coverButton.appendChild(image);
     } else {
         const placeholder = document.createElement("span");
@@ -316,7 +317,6 @@ function createRecordingCard(recording) {
     directory.textContent = recording.directory_id;
 
     info.append(name, meta, directory);
-    coverButton.appendChild(info);
 
     const deleteButton = document.createElement("button");
     deleteButton.className = "recording-delete-button";
@@ -334,7 +334,7 @@ function createRecordingCard(recording) {
     `;
     deleteButton.addEventListener("click", () => confirmDeleteRecording(recording));
 
-    article.append(coverButton, deleteButton);
+    article.append(coverButton, info, deleteButton);
     return article;
 }
 
