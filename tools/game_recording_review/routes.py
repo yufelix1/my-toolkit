@@ -20,6 +20,7 @@ VIDEO_EXTENSIONS = {".mp4"}
 COVER_EXTENSIONS = (".jpeg", ".jpg", ".png", ".webp")
 MEDIA_EXTENSIONS = VIDEO_EXTENSIONS | set(COVER_EXTENSIONS)
 MAX_SCAN_SESSIONS = 32
+MAX_BATCH_RECORDINGS = 1000
 FAVORITES_FILENAME = ".game-recording-review.json"
 FAVORITES_VERSION = 1
 SETTINGS_FILENAME = "game-recording-review.json"
@@ -841,6 +842,87 @@ def api_delete_recording():
         return _json_error(error.strerror or str(error), 409)
 
     return jsonify({"success": True, "deleted": deleted})
+
+
+@game_recording_review_bp.route("/api/recordings", methods=["DELETE"])
+def api_delete_recordings():
+    data = request.get_json(silent=True) or {}
+    if not _get_scan_context(data.get("scan_id")):
+        return _json_error("扫描已失效，请重新扫描", 404)
+
+    recordings = data.get("recordings")
+    if not isinstance(recordings, list) or not recordings:
+        return _json_error("请至少选择一个录屏", 400)
+    if len(recordings) > MAX_BATCH_RECORDINGS:
+        return _json_error(f"单次最多删除 {MAX_BATCH_RECORDINGS} 个录屏", 400)
+
+    deleted_recordings = []
+    errors = []
+    seen = set()
+    for recording in recordings:
+        if not isinstance(recording, dict):
+            errors.append({"root": None, "path": None, "message": "录屏参数无效"})
+            continue
+
+        root_path = _get_scan_root(data.get("scan_id"), recording.get("root"))
+        relative_path = recording.get("path")
+        if not root_path:
+            errors.append(
+                {
+                    "root": recording.get("root"),
+                    "path": relative_path,
+                    "message": "录屏所属根目录无效，请重新扫描",
+                }
+            )
+            continue
+        if not isinstance(relative_path, str):
+            errors.append(
+                {
+                    "root": root_path,
+                    "path": None,
+                    "message": "录屏路径参数无效",
+                }
+            )
+            continue
+
+        key = (root_path, relative_path)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        try:
+            deleted_files = delete_recording(
+                root_path,
+                relative_path,
+                recording.get("size"),
+                recording.get("mtime_ns"),
+            )
+        except (ValueError, FileNotFoundError, RuntimeError, OSError) as error:
+            errors.append(
+                {
+                    "root": root_path,
+                    "path": relative_path,
+                    "message": getattr(error, "strerror", None) or str(error),
+                }
+            )
+            continue
+
+        deleted_recordings.append(
+            {
+                "root": root_path,
+                "path": relative_path,
+                "files": deleted_files,
+            }
+        )
+
+    return jsonify(
+        {
+            "success": not errors,
+            "deleted": deleted_recordings,
+            "deleted_count": len(deleted_recordings),
+            "errors": errors,
+        }
+    )
 
 
 @game_recording_review_bp.route("/api/recording/favorite", methods=["PATCH"])

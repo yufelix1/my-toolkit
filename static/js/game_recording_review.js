@@ -9,6 +9,8 @@ const reviewState = {
     filter: "",
     timeRange: "",
     gameId: "",
+    selectedRecordingKeys: new Set(),
+    batchDeleting: false,
 };
 
 const TIME_RANGE_SECONDS = Object.freeze({
@@ -33,6 +35,10 @@ const elements = {
     gameFilter: document.getElementById("game-filter"),
     timeRangeFilter: document.getElementById("time-range-filter"),
     filterInput: document.getElementById("filter-input"),
+    batchControls: document.getElementById("batch-controls"),
+    selectAllRecordings: document.getElementById("select-all-recordings"),
+    selectedRecordingCount: document.getElementById("selected-recording-count"),
+    deleteSelectedRecordings: document.getElementById("delete-selected-recordings"),
     gameGroups: document.getElementById("game-groups"),
     recordingsEmpty: document.getElementById("recordings-empty"),
     favoritesView: document.getElementById("favorites-view"),
@@ -79,25 +85,46 @@ elements.refreshButton.addEventListener("click", () => scanRoots(reviewState.roo
 
 elements.gameFilter.addEventListener("change", event => {
     reviewState.gameId = event.target.value;
+    clearRecordingSelection();
     updateViewCounts();
     renderRecordings();
     renderFavorites();
     renderEmptyDirectories();
+    updateBatchControls();
 });
 
 elements.timeRangeFilter.addEventListener("change", event => {
     reviewState.timeRange = event.target.value;
+    clearRecordingSelection();
     updateViewCounts();
     renderRecordings();
     renderFavorites();
+    updateBatchControls();
 });
 
 elements.filterInput.addEventListener("input", event => {
     reviewState.filter = event.target.value.trim().toLowerCase();
+    clearRecordingSelection();
     renderRecordings();
     renderFavorites();
     renderEmptyDirectories();
+    updateBatchControls();
 });
+
+elements.selectAllRecordings.addEventListener("change", event => {
+    visibleRecordings().forEach(recording => {
+        const key = recordingKey(recording);
+        if (event.target.checked) {
+            reviewState.selectedRecordingKeys.add(key);
+        } else {
+            reviewState.selectedRecordingKeys.delete(key);
+        }
+    });
+    syncRecordingSelectionControls();
+    updateBatchControls();
+});
+
+elements.deleteSelectedRecordings.addEventListener("click", deleteSelectedRecordings);
 
 document.querySelectorAll(".view-tab").forEach(tab => {
     tab.addEventListener("click", () => setView(tab.dataset.view));
@@ -160,6 +187,7 @@ async function scanRoots(paths, options = {}) {
         reviewState.emptyDirectories = data.empty_directories;
         reviewState.ignoredDirectories = data.ignored_directories;
         reviewState.summary = data.summary;
+        clearRecordingSelection();
         elements.settingsRootPaths.value = data.roots.join("\n");
         elements.settingsIgnoredDirectories.value = data.ignored_directories.join("\n");
         updateRootBadge(data.roots);
@@ -293,6 +321,7 @@ function renderAll() {
     renderRecordings();
     renderFavorites();
     renderEmptyDirectories();
+    updateBatchControls();
 }
 
 function updateViewCounts() {
@@ -321,6 +350,55 @@ function recordingMatches(recording) {
     if (!reviewState.filter) return true;
     return [recording.game_id, recording.directory_id, recording.name, recording.root]
         .some(value => value.toLowerCase().includes(reviewState.filter));
+}
+
+function recordingKey(recording) {
+    return JSON.stringify([recording.root, recording.path]);
+}
+
+function visibleRecordings() {
+    if (reviewState.view === "empty") return [];
+    return reviewState.games.flatMap(game => game.recordings).filter(recording => {
+        if (reviewState.view === "favorites" && !recording.favorite) return false;
+        return recordingMatches(recording);
+    });
+}
+
+function clearRecordingSelection() {
+    reviewState.selectedRecordingKeys.clear();
+}
+
+function syncRecordingSelectionControls() {
+    document.querySelectorAll(".recording-select-checkbox").forEach(checkbox => {
+        const selected = reviewState.selectedRecordingKeys.has(checkbox.recordingKey);
+        checkbox.checked = selected;
+        checkbox.disabled = reviewState.batchDeleting;
+        checkbox.closest(".recording-card")?.classList.toggle("is-selected", selected);
+    });
+}
+
+function updateBatchControls() {
+    const active = reviewState.view !== "empty";
+    elements.batchControls.hidden = !active;
+    if (!active) return;
+
+    const recordings = visibleRecordings();
+    const selectedCount = recordings.filter(recording => (
+        reviewState.selectedRecordingKeys.has(recordingKey(recording))
+    )).length;
+    elements.selectedRecordingCount.textContent = selectedCount;
+    elements.selectedRecordingCount.hidden = selectedCount === 0;
+    elements.selectedRecordingCount.setAttribute("aria-label", `已选 ${selectedCount} 项`);
+    elements.selectAllRecordings.checked = recordings.length > 0
+        && selectedCount === recordings.length;
+    elements.selectAllRecordings.indeterminate = selectedCount > 0
+        && selectedCount < recordings.length;
+    elements.selectAllRecordings.disabled = reviewState.batchDeleting || !recordings.length;
+    elements.deleteSelectedRecordings.disabled = reviewState.batchDeleting || !selectedCount;
+    const deleteLabel = reviewState.batchDeleting ? "正在删除已选录屏" : "删除已选录屏";
+    elements.deleteSelectedRecordings.setAttribute("aria-label", deleteLabel);
+    elements.deleteSelectedRecordings.title = deleteLabel;
+    elements.deleteSelectedRecordings.setAttribute("aria-busy", String(reviewState.batchDeleting));
 }
 
 function renderRecordings() {
@@ -379,6 +457,29 @@ function renderRecordingGroups(container, emptyElement, predicate) {
 function createRecordingCard(recording) {
     const article = document.createElement("article");
     article.className = "recording-card";
+    const key = recordingKey(recording);
+    const selected = reviewState.selectedRecordingKeys.has(key);
+    article.classList.toggle("is-selected", selected);
+
+    const selectionControl = document.createElement("label");
+    selectionControl.className = "recording-select-control";
+    const selectionInput = document.createElement("input");
+    selectionInput.className = "recording-select-checkbox";
+    selectionInput.type = "checkbox";
+    selectionInput.checked = selected;
+    selectionInput.disabled = reviewState.batchDeleting;
+    selectionInput.recordingKey = key;
+    selectionInput.setAttribute("aria-label", `选择 ${recording.name}`);
+    selectionInput.addEventListener("change", event => {
+        if (event.target.checked) {
+            reviewState.selectedRecordingKeys.add(key);
+        } else {
+            reviewState.selectedRecordingKeys.delete(key);
+        }
+        article.classList.toggle("is-selected", event.target.checked);
+        updateBatchControls();
+    });
+    selectionControl.appendChild(selectionInput);
 
     const coverButton = document.createElement("button");
     coverButton.className = "cover-button";
@@ -439,23 +540,7 @@ function createRecordingCard(recording) {
     updateFavoriteButton(favoriteButton, recording);
     favoriteButton.addEventListener("click", () => toggleFavorite(recording, favoriteButton));
 
-    const deleteButton = document.createElement("button");
-    deleteButton.className = "recording-delete-button";
-    deleteButton.type = "button";
-    deleteButton.title = `删除 ${recording.name}`;
-    deleteButton.setAttribute("aria-label", `删除 ${recording.name}`);
-    deleteButton.innerHTML = `
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M3 6h18"></path>
-            <path d="M8 6V4h8v2"></path>
-            <path d="M19 6l-1 14H6L5 6"></path>
-            <path d="M10 11v5"></path>
-            <path d="M14 11v5"></path>
-        </svg>
-    `;
-    deleteButton.addEventListener("click", () => confirmDeleteRecording(recording));
-
-    article.append(coverButton, info, favoriteButton, deleteButton);
+    article.append(coverButton, info, selectionControl, favoriteButton);
     return article;
 }
 
@@ -487,6 +572,7 @@ async function toggleFavorite(recording, button) {
         });
         recording.favorite = data.favorite;
         recording.favorited_at = data.favorited_at;
+        reviewState.selectedRecordingKeys.delete(recordingKey(recording));
         updateFavoriteButton(button, recording);
         renderAll();
         showToast(data.favorite ? "已收藏录屏" : "已取消收藏");
@@ -545,6 +631,7 @@ function commandButton(label, className, handler) {
 
 function setView(view) {
     reviewState.view = view;
+    clearRecordingSelection();
     elements.timeRangeFilter.disabled = view === "empty";
     elements.recordingsView.hidden = view !== "recordings";
     elements.favoritesView.hidden = view !== "favorites";
@@ -554,6 +641,8 @@ function setView(view) {
         tab.classList.toggle("active", active);
         tab.setAttribute("aria-selected", String(active));
     });
+    syncRecordingSelectionControls();
+    updateBatchControls();
 }
 
 function mediaUrl(root, relativePath) {
@@ -580,24 +669,50 @@ function stopPreview() {
     elements.previewVideo.load();
 }
 
-async function confirmDeleteRecording(recording) {
-    if (!confirm(`确定删除录屏 ${recording.name} 及其封面吗？此操作不可撤销。`)) return;
+async function deleteSelectedRecordings() {
+    const recordings = visibleRecordings().filter(recording => (
+        reviewState.selectedRecordingKeys.has(recordingKey(recording))
+    ));
+    if (!recordings.length) return;
+    if (!confirm(`确定删除选中的 ${recordings.length} 个录屏及其封面吗？此操作不可撤销。`)) return;
+
+    reviewState.batchDeleting = true;
+    syncRecordingSelectionControls();
+    updateBatchControls();
     try {
-        await requestJson("/tools/game-recording-review/api/recording", {
+        const data = await requestJson("/tools/game-recording-review/api/recordings", {
             method: "DELETE",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({
                 scan_id: reviewState.scanId,
-                root: recording.root,
-                path: recording.path,
-                size: recording.size,
-                mtime_ns: recording.mtime_ns,
+                recordings: recordings.map(recording => ({
+                    root: recording.root,
+                    path: recording.path,
+                    size: recording.size,
+                    mtime_ns: recording.mtime_ns,
+                })),
             }),
         });
-        showToast("录屏已删除");
+        clearRecordingSelection();
         await scanRoots(reviewState.roots);
+        if (data.errors.length) {
+            const details = data.errors.slice(0, 3)
+                .map(error => `${error.path || "未知录屏"}：${error.message}`)
+                .join("；");
+            const remaining = data.errors.length - 3;
+            showStatus(
+                `已删除 ${data.deleted_count} 个录屏，${data.errors.length} 个失败：${details}${remaining > 0 ? `；另有 ${remaining} 个错误` : ""}`,
+                "warning",
+            );
+        } else {
+            showToast(`已删除 ${data.deleted_count} 个录屏`);
+        }
     } catch (error) {
         showStatus(error.message);
+    } finally {
+        reviewState.batchDeleting = false;
+        syncRecordingSelectionControls();
+        updateBatchControls();
     }
 }
 

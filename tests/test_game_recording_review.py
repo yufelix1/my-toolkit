@@ -387,6 +387,106 @@ class GameRecordingReviewTestCase(unittest.TestCase):
             self.assertFalse(os.path.exists(cover_path))
             self.assertTrue(os.path.isfile(second_video))
 
+    def test_batch_delete_api_removes_selected_recordings(self):
+        with tempfile.TemporaryDirectory() as root:
+            video_path, cover_path, second_video, _, _ = self.create_recording_tree(root)
+            app = Flask(__name__)
+            app.register_blueprint(
+                game_recording_review_bp,
+                url_prefix="/tools/game-recording-review",
+            )
+            client = app.test_client()
+            scan_data = client.post(
+                "/tools/game-recording-review/api/scan",
+                json={"path": root},
+            ).get_json()
+            recordings = [
+                recording
+                for game in scan_data["games"]
+                for recording in game["recordings"]
+            ]
+
+            response = client.delete(
+                "/tools/game-recording-review/api/recordings",
+                json={
+                    "scan_id": scan_data["scan_id"],
+                    "recordings": [
+                        {
+                            "root": recording["root"],
+                            "path": recording["path"],
+                            "size": recording["size"],
+                            "mtime_ns": recording["mtime_ns"],
+                        }
+                        for recording in recordings
+                    ],
+                },
+            )
+
+            data = response.get_json()
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(data["success"])
+            self.assertEqual(data["deleted_count"], 2)
+            self.assertEqual(data["errors"], [])
+            self.assertFalse(os.path.exists(video_path))
+            self.assertFalse(os.path.exists(cover_path))
+            self.assertFalse(os.path.exists(second_video))
+
+    def test_batch_delete_api_reports_partial_failures(self):
+        with tempfile.TemporaryDirectory() as root:
+            video_path, cover_path, second_video, _, _ = self.create_recording_tree(root)
+            app = Flask(__name__)
+            app.register_blueprint(
+                game_recording_review_bp,
+                url_prefix="/tools/game-recording-review",
+            )
+            client = app.test_client()
+            scan_data = client.post(
+                "/tools/game-recording-review/api/scan",
+                json={"path": root},
+            ).get_json()
+            recordings = [
+                recording
+                for game in scan_data["games"]
+                for recording in game["recordings"]
+            ]
+            with open(video_path, "ab") as file:
+                file.write(b"changed")
+
+            response = client.delete(
+                "/tools/game-recording-review/api/recordings",
+                json={
+                    "scan_id": scan_data["scan_id"],
+                    "recordings": [
+                        {
+                            "root": recording["root"],
+                            "path": recording["path"],
+                            "size": recording["size"],
+                            "mtime_ns": recording["mtime_ns"],
+                        }
+                        for recording in recordings
+                    ],
+                },
+            )
+
+            data = response.get_json()
+            self.assertEqual(response.status_code, 200)
+            self.assertFalse(data["success"])
+            self.assertEqual(data["deleted_count"], 1)
+            self.assertEqual(len(data["errors"]), 1)
+            self.assertTrue(os.path.isfile(video_path))
+            self.assertTrue(os.path.isfile(cover_path))
+            self.assertFalse(os.path.exists(second_video))
+
+            malformed_response = client.delete(
+                "/tools/game-recording-review/api/recordings",
+                json={
+                    "scan_id": scan_data["scan_id"],
+                    "recordings": [{"root": root, "path": []}],
+                },
+            )
+            self.assertEqual(malformed_response.status_code, 200)
+            self.assertEqual(len(malformed_response.get_json()["errors"]), 1)
+
     def test_favorite_api_updates_and_survives_a_new_scan(self):
         with tempfile.TemporaryDirectory() as root:
             video_path, _, _, _, _ = self.create_recording_tree(root)

@@ -82,6 +82,21 @@
                     <span class="sr-only">搜索录屏</span>
                     <input id="filter-input" type="text" placeholder="搜索目录或文件名">
                 </label>
+                <div id="batch-controls" class="batch-controls" aria-label="批量删除录屏">
+                    <label class="batch-select-all" title="全选当前结果">
+                        <input id="select-all-recordings" type="checkbox" aria-label="全选当前结果">
+                        <span id="selected-recording-count" class="selected-recording-count" aria-live="polite" hidden>0</span>
+                    </label>
+                    <button id="delete-selected-recordings" class="batch-delete-button" type="button" aria-label="删除已选录屏" title="删除已选录屏" disabled>
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M3 6h18"></path>
+                            <path d="M8 6V4h8v2"></path>
+                            <path d="M19 6l-1 14H6L5 6"></path>
+                            <path d="M10 11v5"></path>
+                            <path d="M14 11v5"></path>
+                        </svg>
+                    </button>
+                </div>
             </div>
         </div>
 

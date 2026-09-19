@@ -245,10 +245,23 @@ html {
 
 .filter-controls {
     display: grid;
-    width: 522px;
-    grid-template-columns: 150px 136px 220px;
+    width: 610px;
+    grid-template-areas: "game time search batch";
+    grid-template-columns: 150px 136px 220px 80px;
     gap: 8px;
     padding-bottom: 8px;
+}
+
+.game-filter-field {
+    grid-area: game;
+}
+
+.time-range-filter-field {
+    grid-area: time;
+}
+
+.filter-field {
+    grid-area: search;
 }
 
 .filter-field,
@@ -276,6 +289,92 @@ html {
     background: var(--surface-subtle);
     color: var(--faint);
     cursor: not-allowed;
+}
+
+.batch-controls {
+    display: flex;
+    grid-area: batch;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.batch-select-all {
+    position: relative;
+    display: grid;
+    width: 36px;
+    height: 38px;
+    flex: 0 0 36px;
+    place-items: center;
+    border: 1px solid var(--review-line);
+    border-radius: 6px;
+    background: var(--review-surface);
+    cursor: pointer;
+}
+
+.batch-select-all input,
+.recording-select-control input {
+    width: 17px;
+    height: 17px;
+    margin: 0;
+    accent-color: var(--review-accent);
+}
+
+.batch-select-all:has(input:disabled) {
+    background: var(--surface-subtle);
+    cursor: not-allowed;
+}
+
+.selected-recording-count {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    display: grid;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    place-items: center;
+    border: 2px solid var(--review-canvas);
+    border-radius: 9px;
+    background: var(--review-accent);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.review-page .batch-delete-button {
+    display: grid;
+    width: 36px;
+    min-width: 36px;
+    height: 38px;
+    min-height: 38px;
+    padding: 0;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--review-danger) 42%, var(--review-line));
+    background: var(--review-surface);
+    color: var(--review-danger);
+}
+
+.review-page .batch-delete-button:hover:not(:disabled) {
+    border-color: var(--review-danger);
+    background: var(--danger-soft);
+}
+
+.review-page .batch-delete-button:disabled {
+    border-color: var(--review-line);
+    background: var(--surface-subtle);
+    color: var(--faint);
+}
+
+.batch-delete-button svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
 }
 
 .game-group {
@@ -325,6 +424,11 @@ html {
     border-color: var(--line-strong);
     box-shadow: var(--shadow-small);
     transform: translateY(-2px);
+}
+
+.recording-card.is-selected {
+    border-color: var(--review-accent);
+    box-shadow: 0 0 0 1px var(--review-accent);
 }
 
 .review-page .cover-button {
@@ -440,10 +544,35 @@ html {
     white-space: nowrap;
 }
 
-.review-page .recording-favorite-button {
+.recording-select-control {
     position: absolute;
     top: 8px;
     left: 8px;
+    z-index: 2;
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 6px;
+    background: rgba(17, 22, 21, 0.82);
+    cursor: pointer;
+}
+
+.recording-select-control:has(input:checked) {
+    border-color: var(--review-accent);
+    background: var(--accent-soft);
+}
+
+.recording-select-control:has(input:disabled) {
+    cursor: wait;
+    opacity: 0.72;
+}
+
+.review-page .recording-favorite-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
     z-index: 1;
     display: grid;
     width: 34px;
@@ -497,45 +626,6 @@ html {
     font-family: Arial, sans-serif;
     font-size: 19px;
     line-height: 1;
-}
-
-.review-page .recording-delete-button {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    z-index: 1;
-    display: grid;
-    width: 34px;
-    min-width: 34px;
-    height: 34px;
-    min-height: 34px;
-    padding: 0;
-    place-items: center;
-    border: 1px solid rgba(255, 255, 255, 0.5);
-    border-radius: 6px;
-    background: rgba(17, 22, 21, 0.82);
-    color: #f5faf8;
-}
-
-.review-page .recording-delete-button:hover {
-    border-color: color-mix(in srgb, var(--review-danger) 70%, #f5faf8);
-    background: var(--review-danger);
-    color: #f5faf8;
-}
-
-.review-page .recording-delete-button:focus-visible {
-    outline: 2px solid #f5faf8;
-    outline-offset: 2px;
-}
-
-.recording-delete-button svg {
-    width: 17px;
-    height: 17px;
-    fill: none;
-    stroke: currentColor;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke-width: 2;
 }
 
 .review-page .secondary-button,
@@ -832,7 +922,7 @@ html {
     white-space: nowrap;
 }
 
-@media (max-width: 920px) {
+@media (max-width: 1000px) {
     .review-controls {
         align-items: stretch;
         flex-direction: column;
@@ -844,7 +934,7 @@ html {
     }
 
     .filter-controls {
-        width: min(100%, 522px);
+        width: min(100%, 610px);
         align-self: flex-end;
         padding-bottom: 0;
     }
@@ -878,11 +968,14 @@ html {
 
     .filter-controls {
         width: 100%;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-areas:
+            "game time"
+            "search batch";
+        grid-template-columns: minmax(0, 1fr) 136px;
     }
 
-    .filter-field {
-        grid-column: 1 / -1;
+    .batch-controls {
+        justify-content: flex-end;
     }
 
     .recording-grid {
