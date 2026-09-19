@@ -7,8 +7,17 @@ const reviewState = {
     summary: {},
     view: "recordings",
     filter: "",
+    timeRange: "",
     gameId: "",
 };
+
+const TIME_RANGE_SECONDS = Object.freeze({
+    "12h": 12 * 60 * 60,
+    "1d": 24 * 60 * 60,
+    "7d": 7 * 24 * 60 * 60,
+    "30d": 30 * 24 * 60 * 60,
+    "365d": 365 * 24 * 60 * 60,
+});
 
 const elements = {
     rootBadge: document.getElementById("root-badge"),
@@ -22,6 +31,7 @@ const elements = {
     favoriteTabCount: document.getElementById("favorite-tab-count"),
     emptyTabCount: document.getElementById("empty-tab-count"),
     gameFilter: document.getElementById("game-filter"),
+    timeRangeFilter: document.getElementById("time-range-filter"),
     filterInput: document.getElementById("filter-input"),
     gameGroups: document.getElementById("game-groups"),
     recordingsEmpty: document.getElementById("recordings-empty"),
@@ -73,6 +83,13 @@ elements.gameFilter.addEventListener("change", event => {
     renderRecordings();
     renderFavorites();
     renderEmptyDirectories();
+});
+
+elements.timeRangeFilter.addEventListener("change", event => {
+    reviewState.timeRange = event.target.value;
+    updateViewCounts();
+    renderRecordings();
+    renderFavorites();
 });
 
 elements.filterInput.addEventListener("input", event => {
@@ -279,10 +296,9 @@ function renderAll() {
 }
 
 function updateViewCounts() {
-    const games = reviewState.gameId
-        ? reviewState.games.filter(game => game.game_id === reviewState.gameId)
-        : reviewState.games;
-    const recordings = games.flatMap(game => game.recordings);
+    const recordings = reviewState.games
+        .flatMap(game => game.recordings)
+        .filter(recordingMatchesScope);
     const emptyDirectoryCount = reviewState.emptyDirectories.filter(
         directory => !reviewState.gameId || directory.game_id === reviewState.gameId,
     ).length;
@@ -292,8 +308,16 @@ function updateViewCounts() {
     elements.emptyTabCount.textContent = emptyDirectoryCount;
 }
 
-function recordingMatches(recording) {
+function recordingMatchesScope(recording) {
     if (reviewState.gameId && recording.game_id !== reviewState.gameId) return false;
+    if (!reviewState.timeRange) return true;
+    const rangeSeconds = TIME_RANGE_SECONDS[reviewState.timeRange];
+    const createdAt = Number(recording.created_at ?? recording.mtime);
+    return Number.isFinite(createdAt) && createdAt >= Date.now() / 1000 - rangeSeconds;
+}
+
+function recordingMatches(recording) {
+    if (!recordingMatchesScope(recording)) return false;
     if (!reviewState.filter) return true;
     return [recording.game_id, recording.directory_id, recording.name, recording.root]
         .some(value => value.toLowerCase().includes(reviewState.filter));
@@ -393,7 +417,7 @@ function createRecordingCard(recording) {
     const meta = document.createElement("div");
     meta.className = "recording-meta";
     const date = document.createElement("span");
-    date.textContent = formatDate(recording.mtime);
+    date.textContent = formatDate(recording.created_at ?? recording.mtime);
     const size = document.createElement("span");
     size.textContent = formatBytes(recording.size);
     meta.append(date, size);
@@ -521,6 +545,7 @@ function commandButton(label, className, handler) {
 
 function setView(view) {
     reviewState.view = view;
+    elements.timeRangeFilter.disabled = view === "empty";
     elements.recordingsView.hidden = view !== "recordings";
     elements.favoritesView.hidden = view !== "favorites";
     elements.emptyView.hidden = view !== "empty";

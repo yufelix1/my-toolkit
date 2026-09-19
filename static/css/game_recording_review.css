@@ -156,6 +156,7 @@ html {
 .settings-dialog .path-field input,
 .settings-dialog .path-field textarea,
 .filter-field input,
+.time-range-filter-field select,
 .game-filter-field select {
     margin: 0;
     border-color: var(--review-line);
@@ -244,18 +245,20 @@ html {
 
 .filter-controls {
     display: grid;
-    width: min(580px, 55vw);
-    grid-template-columns: minmax(150px, 0.72fr) minmax(220px, 1.28fr);
+    width: 522px;
+    grid-template-columns: 150px 136px 220px;
     gap: 8px;
     padding-bottom: 8px;
 }
 
 .filter-field,
+.time-range-filter-field,
 .game-filter-field {
     min-width: 0;
 }
 
 .filter-field input,
+.time-range-filter-field select,
 .game-filter-field select {
     width: 100%;
     height: 38px;
@@ -263,9 +266,16 @@ html {
     font-size: 14px;
 }
 
-.game-filter-field select {
+.game-filter-field select,
+.time-range-filter-field select {
     background: var(--review-surface);
     color: var(--review-ink);
+}
+
+.time-range-filter-field select:disabled {
+    background: var(--surface-subtle);
+    color: var(--faint);
+    cursor: not-allowed;
 }
 
 .game-group {
@@ -822,6 +832,24 @@ html {
     white-space: nowrap;
 }
 
+@media (max-width: 920px) {
+    .review-controls {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .view-tabs {
+        order: 2;
+    }
+
+    .filter-controls {
+        width: min(100%, 522px);
+        align-self: flex-end;
+        padding-bottom: 0;
+    }
+}
+
 @media (max-width: 768px) {
     .review-container {
         width: calc(100% - 24px);
@@ -850,8 +878,11 @@ html {
 
     .filter-controls {
         width: 100%;
-        grid-template-columns: minmax(118px, 0.72fr) minmax(0, 1.28fr);
-        padding-bottom: 0;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .filter-field {
+        grid-column: 1 / -1;
     }
 
     .recording-grid {

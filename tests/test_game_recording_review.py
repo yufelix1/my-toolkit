@@ -134,7 +134,14 @@ class GameRecordingReviewTestCase(unittest.TestCase):
             self.assertEqual(result["summary"]["empty_directory_count"], 1)
             recordings = result["games"][0]["recordings"]
             covered = next(item for item in recordings if item["name"].startswith("53d3"))
+            covered_stat = os.stat(os.path.join(root, covered["path"]))
+            expected_created_at = getattr(
+                covered_stat,
+                "st_birthtime",
+                covered_stat.st_ctime if os.name == "nt" else covered_stat.st_mtime,
+            )
             self.assertTrue(covered["cover_path"].endswith(".jpeg"))
+            self.assertEqual(covered["created_at"], expected_created_at)
             self.assertFalse(covered["favorite"])
             self.assertIsNone(covered["favorited_at"])
             self.assertEqual(result["empty_directories"][0]["directory_id"], "empty-directory")

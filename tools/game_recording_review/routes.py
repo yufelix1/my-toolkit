@@ -169,6 +169,17 @@ def _record_error(errors, path, error):
     errors.append(f"{path}：{getattr(error, 'strerror', None) or str(error)}")
 
 
+def _recording_created_at(stat):
+    birth_time = getattr(stat, "st_birthtime", None)
+    if birth_time is not None:
+        return birth_time
+    if os.name == "nt":
+        return stat.st_ctime
+    # Linux does not expose file birth time through os.stat; mtime is the
+    # stable recording-time fallback and avoids using mutable inode ctime.
+    return stat.st_mtime
+
+
 def _directory_entries(path, errors):
     try:
         with os.scandir(path) as entries:
@@ -455,6 +466,7 @@ def scan_recordings(root_paths, ignored_directories=None):
                                 else None
                             ),
                             "size": stat.st_size,
+                            "created_at": _recording_created_at(stat),
                             "mtime": stat.st_mtime,
                             # Keep nanoseconds as text so browsers do not round the
                             # value beyond JavaScript's safe integer range.
@@ -471,7 +483,11 @@ def scan_recordings(root_paths, ignored_directories=None):
     games = sorted(games_by_id.values(), key=lambda game: game["game_id"].lower())
     for game in games:
         game["recordings"].sort(
-            key=lambda item: (-item["mtime"], item["name"].lower(), item["root"])
+            key=lambda item: (
+                -item["created_at"],
+                item["name"].lower(),
+                item["root"],
+            )
         )
 
     return {
