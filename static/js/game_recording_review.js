@@ -479,7 +479,10 @@ function createRecordingCard(recording) {
         article.classList.toggle("is-selected", event.target.checked);
         updateBatchControls();
     });
-    selectionControl.appendChild(selectionInput);
+    const selectionGlyph = document.createElement("span");
+    selectionGlyph.className = "recording-select-glyph";
+    selectionGlyph.setAttribute("aria-hidden", "true");
+    selectionControl.append(selectionInput, selectionGlyph);
 
     const coverButton = document.createElement("button");
     coverButton.className = "cover-button";
@@ -540,7 +543,11 @@ function createRecordingCard(recording) {
     updateFavoriteButton(favoriteButton, recording);
     favoriteButton.addEventListener("click", () => toggleFavorite(recording, favoriteButton));
 
-    article.append(coverButton, info, selectionControl, favoriteButton);
+    const actions = document.createElement("div");
+    actions.className = "recording-card-actions";
+    actions.append(selectionControl, favoriteButton);
+
+    article.append(coverButton, info, actions);
     return article;
 }
 

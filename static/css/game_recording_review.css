@@ -312,8 +312,7 @@ html {
     cursor: pointer;
 }
 
-.batch-select-all input,
-.recording-select-control input {
+.batch-select-all input {
     width: 17px;
     height: 17px;
     margin: 0;
@@ -337,7 +336,7 @@ html {
     border: 2px solid var(--review-canvas);
     border-radius: 9px;
     background: var(--review-accent);
-    color: #fff;
+    color: #f5faf8;
     font-size: 10px;
     font-weight: 700;
     line-height: 1;
@@ -544,24 +543,101 @@ html {
     white-space: nowrap;
 }
 
-.recording-select-control {
+.recording-card-actions {
     position: absolute;
     top: 8px;
-    left: 8px;
+    right: 8px;
     z-index: 2;
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.32);
+    border-radius: 8px;
+    background: rgba(13, 19, 17, 0.78);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 2px 8px rgba(5, 10, 8, 0.2);
+    backdrop-filter: blur(10px) saturate(125%);
+    -webkit-backdrop-filter: blur(10px) saturate(125%);
+}
+
+.recording-select-control,
+.review-page .recording-favorite-button {
     display: grid;
-    width: 34px;
-    height: 34px;
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    min-height: 30px;
+    padding: 0;
     place-items: center;
-    border: 1px solid rgba(255, 255, 255, 0.5);
-    border-radius: 6px;
-    background: rgba(17, 22, 21, 0.82);
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: #f5faf8;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.recording-select-control {
+    position: relative;
     cursor: pointer;
 }
 
+.recording-select-checkbox {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    overflow: hidden;
+    opacity: 0;
+}
+
+.recording-select-glyph {
+    position: relative;
+    display: block;
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid currentColor;
+    border-radius: 4px;
+}
+
+.recording-select-glyph::after {
+    position: absolute;
+    inset: -2px 0 0;
+    display: grid;
+    place-items: center;
+    color: #f5faf8;
+    content: "\2713";
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    opacity: 0;
+}
+
 .recording-select-control:has(input:checked) {
-    border-color: var(--review-accent);
-    background: var(--accent-soft);
+    background: var(--review-accent);
+    color: #f5faf8;
+}
+
+.recording-select-control:has(input:checked) .recording-select-glyph::after {
+    opacity: 1;
+}
+
+.recording-select-control:hover:not(:has(input:disabled)),
+.review-page .recording-favorite-button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.13);
+}
+
+.recording-select-control:has(input:checked):hover:not(:has(input:disabled)) {
+    background: var(--review-accent-dark);
+}
+
+.recording-select-control:active:not(:has(input:disabled)),
+.review-page .recording-favorite-button:active:not(:disabled) {
+    transform: scale(0.94);
+}
+
+.recording-select-control:focus-within,
+.review-page .recording-favorite-button:focus-visible {
+    outline: 2px solid #f5faf8;
+    outline-offset: 2px;
 }
 
 .recording-select-control:has(input:disabled) {
@@ -570,62 +646,42 @@ html {
 }
 
 .review-page .recording-favorite-button {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    z-index: 1;
-    display: grid;
-    width: 34px;
-    min-width: 34px;
-    height: 34px;
-    min-height: 34px;
-    padding: 0;
-    place-items: center;
-    border: 1px solid rgba(255, 255, 255, 0.5);
-    border-radius: 6px;
-    background: rgba(17, 22, 21, 0.82);
-    color: #f5faf8;
+    position: relative;
 }
 
-.review-page .recording-favorite-button:hover:not(:disabled),
 .review-page .recording-favorite-button.is-favorite {
-    border-color: var(--review-accent);
     background: var(--review-accent);
     color: #f5faf8;
 }
 
 .review-page .recording-favorite-button.is-favorite:hover:not(:disabled) {
-    border-color: var(--review-accent-dark);
     background: var(--review-accent-dark);
 }
 
-.review-page .recording-favorite-button:active:not(:disabled) {
-    transform: scale(0.94);
-}
-
-.review-page .recording-favorite-button:focus-visible {
-    outline: 2px solid #f5faf8;
-    outline-offset: 2px;
-}
-
 .review-page .recording-favorite-button:disabled {
-    border-color: rgba(255, 255, 255, 0.5);
-    background: rgba(17, 22, 21, 0.82);
+    background: transparent;
     color: #f5faf8;
     cursor: wait;
     opacity: 0.72;
 }
 
 .review-page .recording-favorite-button.is-favorite:disabled {
-    border-color: var(--review-accent);
     background: var(--review-accent);
 }
 
 .favorite-glyph {
     display: block;
     font-family: Arial, sans-serif;
-    font-size: 19px;
+    font-size: 18px;
     line-height: 1;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    .recording-card-actions {
+        background: #1c2522;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
 }
 
 .review-page .secondary-button,
